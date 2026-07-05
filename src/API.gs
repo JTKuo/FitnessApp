@@ -595,8 +595,8 @@ function getAnalysisData(authedEmail, userEmail = null) {
     }
 
     // --- 任務 1: 處理體態歷史數據 (不變) ---
-    const weightHistory = [];
-    const bodyfatHistory = [];
+    let weightHistory = [];
+    let bodyfatHistory = [];
     const profileSheet = userSheet.getSheetByName(CONSTANTS.SHEETS.PROFILE);
     if (profileSheet && profileSheet.getLastRow() > 1) {
         const profileData = profileSheet.getRange(2, 1, profileSheet.getLastRow() - 1, profileSheet.getLastColumn()).getValues();
@@ -612,6 +612,25 @@ function getAnalysisData(authedEmail, userEmail = null) {
                 if (row[bodyfatIndex]) bodyfatHistory.push({ x: isoDate, y: parseFloat(row[bodyfatIndex]) });
             }
         });
+    }
+
+    // --- InBody 量測序列 (R1)：與 Profile 來源合併，同日以 InBody 為準 ---
+    let smmHistory = [];
+    const inbodySheet = userSheet.getSheetByName(CONSTANTS.SHEETS.INBODY_LOG);
+    if (inbodySheet && inbodySheet.getLastRow() > 1) {
+      const ibWeight = [], ibBodyfat = [];
+      const ibRows = inbodySheet.getRange(2, 1, inbodySheet.getLastRow() - 1, 6).getValues();
+      ibRows.forEach(function (row) {
+        const d = row[1];
+        if (!(d instanceof Date)) return;
+        const iso = d.toISOString();
+        if (row[2] !== '') ibWeight.push({ x: iso, y: parseFloat(row[2]) });
+        if (row[3] !== '') ibBodyfat.push({ x: iso, y: parseFloat(row[3]) });
+        if (row[4] !== '') smmHistory.push({ x: iso, y: parseFloat(row[4]) });
+      });
+      weightHistory = mergeBodyHistory(weightHistory, ibWeight);
+      bodyfatHistory = mergeBodyHistory(bodyfatHistory, ibBodyfat);
+      smmHistory = mergeBodyHistory([], smmHistory); // 排序 + 同日去重（後者為準）
     }
 
     // --- 篩選日期 (不變) ---
@@ -723,7 +742,7 @@ function getAnalysisData(authedEmail, userEmail = null) {
     weightHistory.sort(sortByDate);
     bodyfatHistory.sort(sortByDate);
     const finalResult = {
-      weightHistory, bodyfatHistory, volumeHistory: finalVolumeHistory,
+      weightHistory, bodyfatHistory, smmHistory, volumeHistory: finalVolumeHistory,
       volumeHistoryByCategory, singleExerciseProgress, workoutFrequency: allSortedDates,
       categoryVolumeDistribution
     };
