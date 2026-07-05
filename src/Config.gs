@@ -50,7 +50,8 @@ const CONSTANTS = {
     BESTS: 'Bests',
     EXERCISE_MASTER: 'ExerciseMaster',
     TEMPLATES: 'Templates',
-    WORKOUT_LOG: 'WorkoutLog'
+    WORKOUT_LOG: 'WorkoutLog',
+    INBODY_LOG: 'InBodyLog'
   },
   HEADERS: {
     UPDATE_DATE: '更新日期',

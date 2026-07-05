@@ -37,7 +37,10 @@ const API_ROUTES = {
   getAllPRs:                        function (email, p) { return getAllPRs(email, p.userEmail || null); },
   updateMultipleExerciseCategories: function (email, p) { return updateMultipleExerciseCategoriesToServer(email, p.changes); },
   saveAdminComment:                 function (email, p) { return saveAdminCommentToServer(email, p.userEmail, p.dateString, p.motion, p.comment); },
-  getPhoto:                         function (email, p) { return getPhotoAsDataUrl(email, p.fileId, p.userEmail || null); }
+  getPhoto:                         function (email, p) { return getPhotoAsDataUrl(email, p.fileId, p.userEmail || null); },
+  saveInBodyRecord:                 function (email, p) { return saveInBodyRecord(email, p.record); },
+  getInBodyRecords:                 function (email, p) { return getInBodyRecords(email, p.userEmail || null); },
+  deleteInBodyRecord:               function (email, p) { return deleteInBodyRecord(email, p.recordId); }
 };
 
 /**
@@ -1283,4 +1286,147 @@ function getPhotoAsDataUrl(authedEmail, fileId, requestedEmail) {
   return {
     dataUrl: 'data:' + blob.getContentType() + ';base64,' + Utilities.base64Encode(blob.getBytes())
   };
+}
+
+// =======================================================
+// InBody 量測記錄 (R1)
+// =======================================================
+
+const INBODY_HEADERS = ['id', 'date', 'weight', 'bodyfat', 'smm', 'photo_id'];
+const INBODY_RANGES = { weight: [20, 300], bodyfat: [1, 70], smm: [10, 100] };
+const INBODY_FIELD_NAMES = { weight: '體重', bodyfat: '體脂率', smm: '骨骼肌重' };
+
+function _getInBodySheet(userSheet) {
+  const sheet = _getOrCreateSheet(userSheet, CONSTANTS.SHEETS.INBODY_LOG);
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(INBODY_HEADERS);
+  }
+  return sheet;
+}
+
+function _parseInBodyNumber(value, field) {
+  if (value === undefined || value === null || value === '') return null;
+  const num = parseFloat(value);
+  const range = INBODY_RANGES[field];
+  if (isNaN(num) || num < range[0] || num > range[1]) {
+    throw new Error(INBODY_FIELD_NAMES[field] + ' 數值不合理（允許範圍 ' + range[0] + '–' + range[1] + '）。');
+  }
+  return num;
+}
+
+/**
+ * (API) 新增一筆 InBody 量測：寫入 InBodyLog、存紙本照片（可選）、
+ * 同步 append Profile 最新值（BMR/TDEE 即時反映）。僅限本人。
+ */
+function saveInBodyRecord(authedEmail, record) {
+  if (!record || typeof record !== 'object' || !record.date || typeof record.date !== 'string') {
+    throw new Error('無效的量測資料格式或缺少日期。');
+  }
+  const weight = _parseInBodyNumber(record.weight, 'weight');
+  const bodyfat = _parseInBodyNumber(record.bodyfat, 'bodyfat');
+  const smm = _parseInBodyNumber(record.smm, 'smm');
+  if (weight === null && bodyfat === null && smm === null) {
+    throw new Error('體重、體脂率、骨骼肌重至少須填一項。');
+  }
+
+  const userSheet = _getUserSheet(authedEmail, true);
+  if (!userSheet) throw new Error('找不到您的資料檔案。');
+  const sheet = _getInBodySheet(userSheet);
+
+  // 保留當前時間的日期物件（與 saveBodyPhotosToServer 同法，見 API.gs:296-299）
+  const dateParts = record.date.split('-');
+  const recordDate = new Date();
+  recordDate.setFullYear(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
+
+  // 紙本照片（可選；存檔模式同 saveBodyPhotosToServer API.gs:304-324）
+  let photoId = '';
+  if (record.photo) {
+    const photosFolder = DriveApp.getFolderById(CONFIG.PHOTOS_FOLDER_ID);
+    const folders = photosFolder.getFoldersByName(authedEmail);
+    const userPhotoFolder = folders.hasNext() ? folders.next() : photosFolder.createFolder(authedEmail);
+    const dateString = Utilities.formatDate(recordDate, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    const fileData = record.photo;
+    const mimeType = fileData.substring(5, fileData.indexOf(';'));
+    const bytes = Utilities.base64Decode(fileData.substring(fileData.indexOf('base64,') + 7));
+    const blob = Utilities.newBlob(bytes, mimeType, 'inbody_' + dateString + '_' + recordDate.getTime() + '.jpg');
+    photoId = userPhotoFolder.createFile(blob).getId();
+  }
+
+  const id = 'ib_' + recordDate.getTime();
+  sheet.appendRow([
+    id, recordDate,
+    weight === null ? '' : weight,
+    bodyfat === null ? '' : bodyfat,
+    smm === null ? '' : smm,
+    photoId
+  ]);
+
+  // 同步 Profile 最新值（append 模式同 saveBodyPhotosToServer API.gs:338-353，多支援 smm）
+  const profileUpdateData = {};
+  if (weight !== null) profileUpdateData.weight = weight;
+  if (bodyfat !== null) profileUpdateData.bodyfat = bodyfat;
+  if (smm !== null) profileUpdateData.smm = smm;
+  const profileSheet = _getOrCreateSheet(userSheet, CONSTANTS.SHEETS.PROFILE);
+  const latestData = _getLatestProfileData(userSheet);
+  const mergedData = { ...latestData, ...profileUpdateData, '更新日期': recordDate };
+  const headers = profileSheet.getRange(1, 1, 1, profileSheet.getLastColumn()).getValues()[0];
+  profileSheet.appendRow(headers.map(function (h) { return mergedData[h] !== undefined ? mergedData[h] : ''; }));
+  profileSheet.sort(1, false);
+  const updatedProfileData = _getLatestProfileData(userSheet);
+  if (updatedProfileData && updatedProfileData['更新日期'] instanceof Date) {
+    updatedProfileData['更新日期'] = updatedProfileData['更新日期'].toISOString();
+  }
+
+  CacheService.getUserCache().remove('analysis_data_' + authedEmail);
+  return { status: 'success', message: 'InBody 量測已儲存！', newRecordId: id, updatedProfileData: updatedProfileData };
+}
+
+/**
+ * (API) 取得 InBody 量測歷史（新→舊）。經 _resolveTarget，admin 可看學員。
+ */
+function getInBodyRecords(authedEmail, requestedEmail) {
+  const target = _resolveTarget(authedEmail, requestedEmail);
+  const userSheet = _getUserSheet(target.targetEmail, false);
+  if (!userSheet) return [];
+  const sheet = userSheet.getSheetByName(CONSTANTS.SHEETS.INBODY_LOG);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, INBODY_HEADERS.length).getValues();
+  const records = rows.map(function (row) {
+    return {
+      id: row[0],
+      date: row[1] instanceof Date ? row[1].toISOString() : String(row[1]),
+      weight: row[2] === '' ? null : parseFloat(row[2]),
+      bodyfat: row[3] === '' ? null : parseFloat(row[3]),
+      smm: row[4] === '' ? null : parseFloat(row[4]),
+      photoId: row[5] || null
+    };
+  });
+  records.sort(function (a, b) { return new Date(b.date) - new Date(a.date); });
+  return records;
+}
+
+/**
+ * (API) 刪除一筆 InBody 量測（含關聯照片移至垃圾桶）。僅限本人。
+ */
+function deleteInBodyRecord(authedEmail, recordId) {
+  if (!recordId || typeof recordId !== 'string') throw new Error('缺少記錄 ID。');
+  const userSheet = _getUserSheet(authedEmail, false);
+  if (!userSheet) throw new Error('找不到您的資料檔案。');
+  const sheet = userSheet.getSheetByName(CONSTANTS.SHEETS.INBODY_LOG);
+  if (sheet && sheet.getLastRow() >= 2) {
+    const data = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === recordId) {
+        const photoId = data[i][5];
+        if (photoId) {
+          try { DriveApp.getFileById(photoId).setTrashed(true); }
+          catch (e) { Logger.log('刪除 InBody 照片失敗: ' + e.message); }
+        }
+        sheet.deleteRow(i + 1);
+        CacheService.getUserCache().remove('analysis_data_' + authedEmail);
+        return { status: 'success', message: '記錄已刪除。' };
+      }
+    }
+  }
+  throw new Error('找不到該筆記錄。');
 }
