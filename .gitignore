@@ -5,6 +5,7 @@
 # 規劃文件與開發暫存（僅本機）
 docs/superpowers/
 .superpowers/
+CLAUDE.md
 
 # Node
 node_modules/
