@@ -208,9 +208,9 @@ export const ui = {
                     for (const type in containers) {
                         const container = containers[type];
                         const photoId = photoData[`photo_${type}_id`];
-                        
+
                         if (photoId) {
-                            renderDrivePhoto(container, photoId, '前次照片');
+                            renderDrivePhoto(container, photoId, `前一次${type}照片`);
                         } else {
                             container.innerHTML = '<span class="text-gray-500">無照片</span>';
                         }
