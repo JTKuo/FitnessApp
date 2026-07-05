@@ -5,14 +5,708 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>個人化健身暨健康追蹤</title>
     <script src="https://accounts.google.com/gsi/client" async></script>
+    <!-- Ionicons 與 Google Fonts 維持 CDN（Task 11 以 runtimeCaching 快取，屬已接受的例外） -->
+    <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+    <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
-<body class="bg-black text-white">
+<body class="text-white font-sans antialiased">
     <div id="login-screen" class="fixed inset-0 z-[60] bg-black flex flex-col items-center justify-center gap-6">
         <h1 class="text-2xl font-bold text-yellow-400">個人化健身暨健康追蹤</h1>
         <p class="text-gray-400 text-sm">請使用 Google 帳號登入</p>
         <div id="signin-button"></div>
     </div>
-    <pre id="smoke-result" class="p-4 text-xs text-green-400 whitespace-pre-wrap"></pre>
+
+    <div id="toast-notification" class="hidden fixed top-5 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-lg text-white font-semibold shadow-lg text-center">
+        <span id="toast-message"></span>
+    </div>
+
+    <!-- 全螢幕載入遮罩 -->
+    <div id="loading-overlay" class="fixed inset-0 bg-black bg-opacity-90 flex justify-center items-center z-50">
+        <div class="loader-container">
+            <div class="loader-ring"></div>
+            <div class="loader-ring"></div>
+            <div class="loader-ring"></div>
+        </div>
+    </div>
+
+    <!-- 新增/儲存 Modal -->
+    <div id="prompt-modal" class="hidden fixed inset-0 z-40 flex justify-center items-center p-4">
+        <div class="modal-backdrop absolute inset-0"></div>
+        <div class="modal card rounded-lg p-6 w-full max-w-sm relative">
+            <h3 id="prompt-title" class="text-xl font-bold text-yellow-400 mb-4 text-center"></h3>
+            <input type="text" id="prompt-input" class="w-full rounded-md p-3 text-lg text-center">
+            <div class="grid grid-cols-2 gap-4 mt-4">
+                <button id="prompt-cancel" class="w-full bg-[#2d2a27] hover:bg-black border border-gray-600 p-3 rounded-md font-semibold">取消</button>
+                <button id="prompt-confirm" class="w-full bg-yellow-500 hover:bg-yellow-600 border border-yellow-400 text-black p-3 rounded-md font-semibold btn-glow">確認</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 載入範本 Modal -->
+    <div id="load-template-modal" class="hidden fixed inset-0 z-40 flex justify-center items-center p-4">
+        <div class="modal-backdrop absolute inset-0"></div>
+        <div class="modal card rounded-lg p-6 w-full max-w-sm relative">
+            <h3 class="text-xl font-bold text-yellow-400 mb-4 text-center">載入訓練範本</h3>
+            <div id="template-list" class="space-y-2 max-h-60 overflow-y-auto">
+                <!-- 範本列表將由 JS 動態填入 -->
+            </div>
+             <button id="load-template-cancel" class="mt-4 w-full bg-[#2d2a27] hover:bg-black border border-gray-600 p-3 rounded-md font-semibold">取消</button>
+        </div>
+    </div>
+
+    <!-- 確認刪除 Modal -->
+    <div id="confirm-delete-modal" class="hidden fixed inset-0 z-40 flex justify-center items-center p-4">
+        <div class="modal-backdrop absolute inset-0"></div>
+        <div class="modal card rounded-lg p-6 w-full max-w-sm relative">
+            <h3 class="text-xl font-bold text-yellow-400 mb-2 text-center">確認刪除</h3>
+            <p id="delete-confirm-message" class="text-center text-gray-300 mb-4">您確定要刪除這個項目嗎？</p>
+            <div class="grid grid-cols-2 gap-4 mt-4">
+                <button id="cancel-delete" class="w-full bg-[#2d2a27] hover:bg-black border border-gray-600 p-3 rounded-md font-semibold">取消</button>
+                <button id="confirm-delete" class="w-full bg-red-600 hover:bg-red-700 border border-red-500 text-white p-3 rounded-md font-semibold">確認刪除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 對比 Modal -->
+    <div id="compare-photos-modal" class="hidden fixed inset-0 z-40 flex justify-center items-center p-4">
+        <div class="modal-backdrop absolute inset-0"></div>
+        <div class="modal card rounded-lg p-6 w-full max-w-3xl relative max-h-[90vh] flex flex-col">
+            <h3 class="text-xl font-bold text-yellow-400 mb-4 text-center">歷史體態對比</h3>
+
+            <div class="flex-grow grid grid-cols-2 gap-4 overflow-y-auto">
+                <div class="space-y-3">
+                    <select id="compare-select-before" class="w-full rounded-md p-2">
+                        <option value="">選擇對比日期 (之前)</option>
+                    </select>
+                    <div id="compare-front-before" class="bg-black/30 aspect-square flex items-center justify-center rounded text-gray-500">正面</div>
+                    <div id="compare-side-before" class="bg-black/30 aspect-square flex items-center justify-center rounded text-gray-500">側面</div>
+                    <div id="compare-back-before" class="bg-black/30 aspect-square flex items-center justify-center rounded text-gray-500">背面</div>
+                </div>
+                <div class="space-y-3">
+                    <select id="compare-select-after" class="w-full rounded-md p-2">
+                        <option value="">選擇對比日期 (之後)</option>
+                    </select>
+                    <div id="compare-front-after" class="bg-black/30 aspect-square flex items-center justify-center rounded text-gray-500">正面</div>
+                    <div id="compare-side-after" class="bg-black/30 aspect-square flex items-center justify-center rounded text-gray-500">側面</div>
+                    <div id="compare-back-after" class="bg-black/30 aspect-square flex items-center justify-center rounded text-gray-500">背面</div>
+                </div>
+            </div>
+
+            <button id="compare-modal-close" class="mt-4 w-full bg-[#2d2a27] hover:bg-black border border-gray-600 p-3 rounded-md font-semibold">關閉</button>
+        </div>
+    </div>
+
+    <!-- 新增動作 Modal -->
+	  <div id="autocomplete-modal" class="hidden fixed inset-0 z-40 flex justify-center items-start pt-20 p-4">
+        <div class="modal-backdrop absolute inset-0"></div>
+        <div class="modal card rounded-lg p-6 w-full max-w-sm relative">
+            <h3 id="autocomplete-title" class="text-xl font-bold text-yellow-400 mb-4 text-center">新增訓練動作</h3>
+            <input type="text" id="autocomplete-input" class="w-full rounded-md p-3 text-lg" placeholder="請輸入動作名稱...">
+            
+            <div id="suggestions-list" class="mt-2 max-h-48 overflow-y-auto space-y-1">
+                </div>
+
+            <div class="grid grid-cols-2 gap-4 mt-4">
+                <button id="autocomplete-cancel" class="w-full bg-[#2d2a27] hover:bg-black border border-gray-600 p-3 rounded-md font-semibold">取消</button>
+                <button id="autocomplete-confirm" class="w-full bg-yellow-500 hover:bg-yellow-600 border border-yellow-400 text-black p-3 rounded-md font-semibold btn-glow">確認</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 圖片點擊放大 Modal -->
+    <div id="image-modal" class="hidden fixed inset-0 z-50 flex justify-center items-center p-4">
+        <div id="image-modal-backdrop" class="modal-backdrop absolute inset-0"></div>
+        <div class="relative z-10 w-full h-full flex items-center justify-center">
+            <img id="modal-image" src="" class="max-w-[95vw] max-h-[90vh] object-contain rounded-lg shadow-2xl" alt="放大圖片預覽">
+            <button id="image-modal-close" class="absolute top-0 right-0 m-4 text-white text-4xl bg-black/50 rounded-full leading-none w-10 h-10 flex items-center justify-center">
+                &times;
+            </button>
+        </div>
+    </div>
+
+    <!-- 主容器 -->
+    <div class="container mx-auto max-w-lg min-h-screen flex flex-col pb-20 main-container border-x border-yellow-700/30">
+
+        <!-- 管理者頂部欄 (預設隱藏) -->
+        <div id="admin-bar" class="hidden sticky top-0 bg-yellow-500 text-black p-2 z-30 border-b border-yellow-300 backdrop-filter backdrop-blur-sm">
+            <label for="user-switcher" class="block text-sm font-bold mb-1 text-black/80">管理者模式</label>
+            <select id="user-switcher" class="w-full bg-yellow-400 text-black border border-yellow-600 rounded-md p-1 text-sm focus:ring-2 focus:ring-yellow-200">
+                <!-- 使用者列表將由 JS 動態填入 -->
+            </select>
+        </div>
+
+        <!-- 主要內容區域 -->
+        <main class="flex-grow p-4">
+
+            <!-- ==== 主畫面 (Dashboard) ==== -->
+            <div id="page-dashboard" class="page active">
+                <div class="text-center mb-6">
+                    <h1 class="text-3xl font-bold text-yellow-400 drop-shadow-[0_0_5px_rgba(255,195,0,0.5)]">身分驗證成功</h1>
+                    <p id="welcome-message" class="text-gray-400">系統待命中...</p>
+                </div>
+                
+                <!-- 每月提醒橫幅 (預設隱藏) -->
+                <div id="reminder-banner" class="hidden card p-4 rounded-lg mb-6 text-center border-yellow-400/50">
+                    <p class="font-semibold text-lg text-yellow-400">重要通知：</p>
+                    <p class="text-base text-gray-300">建議更新本月體態數據。</p>
+                </div>
+
+                <!-- 個人資料區塊 -->
+                <div id="profile-section" class="mt-8 space-y-4">
+                    <div id="card-basic-info" class="card p-4 rounded-lg space-y-4">
+                        <div class="flex justify-between items-center border-b border-yellow-500/30 pb-2">
+                            <h3 class="text-lg font-semibold text-yellow-500">
+                               <ion-icon name="person-outline" class="mr-2"></ion-icon>
+                               個人基本資訊
+                            </h3>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-1">姓名 / 暱稱</label>
+                            <p class="view-mode w-full rounded-md p-2 bg-black/30" data-placeholder="未設定">未設定</p>
+                            <input data-key="name" type="text" placeholder="方便管理的稱呼" class="edit-mode hidden w-full rounded-md p-2 profile-input">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">年齡</label>
+                                <p class="view-mode w-full rounded-md p-2 bg-black/30" data-placeholder="未設定">未設定</p>
+                                <input data-key="age" type="number" min="0" class="edit-mode hidden w-full rounded-md p-2 profile-input">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">性別</label>
+                                <p class="view-mode w-full rounded-md p-2 bg-black/30" data-placeholder="未設定">未設定</p>
+                                <select data-key="gender" class="edit-mode hidden w-full rounded-md p-2 profile-input">
+                                    <option value="male">男性</option>
+                                    <option value="female">女性</option>
+                                </select>
+                            </div>
+                        </div>
+                         <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">身高 (cm)</label>
+                                <p class="view-mode w-full rounded-md p-2 bg-black/30" data-placeholder="未設定">未設定</p>
+                                <input data-key="height" type="number" min="0" class="edit-mode hidden w-full rounded-md p-2 profile-input">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">體重 (kg)</label>
+                                <p class="view-mode w-full rounded-md p-2 bg-black/30" data-placeholder="未設定">未設定</p>
+                                <input data-key="weight" type="number" min="0" class="edit-mode hidden w-full rounded-md p-2 profile-input">
+                            </div>
+                        </div>
+                        <div>
+                             <label class="block text-sm font-medium text-gray-300 mb-1">體脂率 (%)</label>
+                             <p class="view-mode w-full rounded-md p-2 bg-black/30" data-placeholder="未設定">未設定</p>
+                             <input data-key="bodyfat" type="number" min="0" class="edit-mode hidden w-full rounded-md p-2 profile-input">
+                        </div>
+
+                        <!-- InBody 數據區塊 -->
+                        <div class="pt-4 border-t border-yellow-500/30 space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">學員 CID</label>
+                                <p class="view-mode w-full rounded-md p-2 bg-black/30" data-placeholder="未設定">未設定</p>
+                                <input data-key="cid" type="text" placeholder="Client ID" class="edit-mode hidden w-full rounded-md p-2 profile-input">
+                            </div>
+                            <div class="grid grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-1">InBody 分數</label>
+                                    <p class="view-mode w-full rounded-md p-2 bg-black/30" data-placeholder="--">--</p>
+                                    <input data-key="inbody_score" type="number" min="0" class="edit-mode hidden w-full rounded-md p-2 profile-input">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-1">骨骼肌重 (kg)</label>
+                                    <p class="view-mode w-full rounded-md p-2 bg-black/30" data-placeholder="--">--</p>
+                                    <input data-key="smm" type="number" min="0" class="edit-mode hidden w-full rounded-md p-2 profile-input">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-1">體脂肪重 (kg)</label>
+                                    <p class="view-mode w-full rounded-md p-2 bg-black/30" data-placeholder="--">--</p>
+                                    <input data-key="bfm" type="number" min="0" class="edit-mode hidden w-full rounded-md p-2 profile-input">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-1">BMI</label>
+                                    <p class="view-mode w-full rounded-md p-2 bg-black/30" data-placeholder="--">--</p>
+                                    <input data-key="bmi" type="number" min="0" class="edit-mode hidden w-full rounded-md p-2 profile-input">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-1">內臟脂肪等級</label>
+                                    <p class="view-mode w-full rounded-md p-2 bg-black/30" data-placeholder="--">--</p>
+                                    <input data-key="vfl" type="number" min="0" class="edit-mode hidden w-full rounded-md p-2 profile-input">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 健康狀況卡片 -->
+                    <div id="card-health-status" class="card p-4 rounded-lg space-y-4">
+                        <div class="flex justify-between items-center border-b border-yellow-500/30 pb-2">
+                            <h3 class="text-lg font-semibold text-yellow-500">
+                                <ion-icon name="pulse-outline" class="mr-2"></ion-icon>
+                                健康狀況
+                            </h3>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">運動經驗</label>
+                                <p class="view-mode w-full rounded-md p-2 bg-black/30" data-placeholder="未設定">未設定</p>
+                                <select data-key="experience" class="edit-mode hidden w-full rounded-md p-2">
+                                    <option>初學者 (1年以下)</option>
+                                    <option>中階 (1-3年)</option>
+                                    <option>高階 (3年以上)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">生活型態</label>
+                                <p class="view-mode w-full rounded-md p-2 bg-black/30" data-placeholder="未設定">未設定</p>
+                                <select data-key="lifestyle" class="edit-mode hidden w-full rounded-md p-2">
+                                    <option>久坐</option>
+                                    <option>體力消耗大</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-1">過往病史或傷病</label>
+                            <!-- 加入 whitespace-pre-wrap class -->
+                            <p class="view-mode whitespace-pre-wrap w-full rounded-md p-2 bg-black/30" data-placeholder="無">無</p>
+                            <textarea data-key="history" rows="3" placeholder="心臟病、高血壓、關節受傷等" class="edit-mode hidden w-full rounded-md p-2"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-1">靜態評估</label>
+                            <!-- 加入 whitespace-pre-wrap class -->
+                            <p class="view-mode whitespace-pre-wrap w-full rounded-md p-2 bg-black/30" data-placeholder="無">無</p>
+                            <textarea data-key="static_assessment" rows="3" placeholder="記錄靜態姿勢評估的結果" class="edit-mode hidden w-full rounded-md p-2"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-1">動態評估</label>
+                            <!-- 加入 whitespace-pre-wrap class -->
+                            <p class="view-mode whitespace-pre-wrap w-full rounded-md p-2 bg-black/30" data-placeholder="無">無</p>
+                            <textarea data-key="dynamic_assessment" rows="3" placeholder="記錄動態動作評估的結果" class="edit-mode hidden w-full rounded-md p-2"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- 個人化建議卡片 -->
+                    <div id="card-recommendations" class="card p-4 rounded-lg space-y-4">
+                        <div class="flex justify-between items-center border-b border-yellow-500/30 pb-2">
+                            <h3 class="text-lg font-semibold text-yellow-500">
+                                <ion-icon name="bulb-outline" class="mr-2"></ion-icon>
+                                個人化建議
+                            </h3>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-1">每周運動頻率</label>
+                            <p class="view-mode w-full rounded-md p-2 bg-black/30" data-placeholder="未設定">未設定</p>
+                            <select data-key="frequency" class="edit-mode hidden w-full rounded-md p-2 profile-input">
+                                <option value="1.2">久坐 (每周運動0-1天)</option>
+                                <option value="1.375">輕度活動 (每周運動1-3天)</option>
+                                <option value="1.55">中度活動 (每周運動3-5天)</option>
+                                <option value="1.725">高度活動 (每周運動6-7天)</option>
+                                <option value="1.9">極度活動 (體力勞動)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-1">飲食法選擇(*請諮詢專家建議，慎選飲食法)</label>
+                            <p class="view-mode w-full rounded-md p-2 bg-black/30" data-placeholder="標準均衡飲食">標準均衡飲食</p>
+                            <select data-key="diet_plan" class="edit-mode hidden w-full rounded-md p-2 profile-input">
+                                <option value="standard">標準均衡飲食 (預設)</option>
+                                <option value="intermittent-fasting">168 斷食法</option>
+                                <option value="keto">生酮飲食</option>
+                                <option value="carb-cycling">碳循環飲食</option>
+                            </select>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-4 text-center">
+                            <div>
+                                <p class="text-sm text-gray-400">BMR</p>
+                                <p id="bmr-display" class="text-2xl font-bold text-white">--</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-400">TDEE</p>
+                                <p id="tdee-display" class="text-2xl font-bold text-white">--</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-400">飲水量(ml)</p>
+                                <p id="water-display" class="text-2xl font-bold text-white">--</p>
+                            </div>
+                        </div>
+                        
+                        <div id="nutrition-goals-container" class="space-y-4 pt-4 border-t border-yellow-500/30">
+                            <div id="template-standard-diet" class="space-y-3">
+                                <div class="pt-2 border-t border-gray-700">
+                                    <p class="text-sm text-center font-semibold text-gray-300 mb-2">維持目標</p>
+                                    <div class="grid grid-cols-4 gap-2 text-center">
+                                        <div><p class="text-xs text-gray-400">熱量</p><p data-goal="maintain-calories" class="font-semibold">--</p></div>
+                                        <div><p class="text-xs text-gray-400">蛋白</p><p data-goal="maintain-protein" class="font-semibold">--</p></div>
+                                        <div><p class="text-xs text-gray-400">脂肪</p><p data-goal="maintain-fat" class="font-semibold">--</p></div>
+                                        <div><p class="text-xs text-gray-400">碳水</p><p data-goal="maintain-carbs" class="font-semibold">--</p></div>
+                                    </div>
+                                </div>
+                                <div class="pt-2 border-t border-gray-700">
+                                    <p class="text-sm text-center font-semibold text-gray-300 mb-2">增肌目標</p>
+                                    <div class="grid grid-cols-4 gap-2 text-center">
+                                        <div><p class="text-xs text-gray-400">熱量</p><p data-goal="bulk-calories" class="font-semibold">--</p></div>
+                                        <div><p class="text-xs text-gray-400">蛋白</p><p data-goal="bulk-protein" class="font-semibold">--</p></div>
+                                        <div><p class="text-xs text-gray-400">脂肪</p><p data-goal="bulk-fat" class="font-semibold">--</p></div>
+                                        <div><p class="text-xs text-gray-400">碳水</p><p data-goal="bulk-carbs" class="font-semibold">--</p></div>
+                                    </div>
+                                </div>
+                                <div class="pt-2 border-t border-gray-700">
+                                    <p class="text-sm text-center font-semibold text-gray-300 mb-2">減脂目標</p>
+                                    <div class="grid grid-cols-4 gap-2 text-center">
+                                        <div><p class="text-xs text-gray-400">熱量</p><p data-goal="cut-calories" class="font-semibold">--</p></div>
+                                        <div><p class="text-xs text-gray-400">蛋白</p><p data-goal="cut-protein" class="font-semibold">--</p></div>
+                                        <div><p class="text-xs text-gray-400">脂肪</p><p data-goal="cut-fat" class="font-semibold">--</p></div>
+                                        <div><p class="text-xs text-gray-400">碳水</p><p data-goal="cut-carbs" class="font-semibold">--</p></div>
+                                    </div>
+                                </div>
+                                <p data-diet-note="intermittent-fasting" class="hidden text-xs text-center text-yellow-300/80 pt-2">
+                                    * 168斷食法著重於進食時間，建議將總熱量集中在 8 小時內攝取完畢。
+                                </p>
+                            </div>
+
+                            <div id="template-keto-diet" class="hidden space-y-3">
+                                <div class="pt-2 border-t border-yellow-500/30">
+                                    <p class="text-sm text-center font-semibold text-yellow-400 mb-2">生酮飲食目標 (減脂)</p>
+                                    <div class="grid grid-cols-4 gap-2 text-center">
+                                        <div><p class="text-xs text-gray-400">熱量</p><p data-goal="keto-calories" class="font-semibold">--</p></div>
+                                        <div><p class="text-xs text-gray-400">蛋白</p><p data-goal="keto-protein" class="font-semibold">--</p></div>
+                                        <div><p class="text-xs text-gray-400">脂肪</p><p data-goal="keto-fat" class="font-semibold">--</p></div>
+                                        <div><p class="text-xs text-gray-400">碳水</p><p data-goal="keto-carbs" class="font-semibold">--</p></div>
+                                    </div>
+                                </div>
+                                <p class="text-xs text-center text-yellow-300/80 pt-2">
+                                    * 生酮飲食需嚴格控制碳水化合物攝取 (通常 < 50g)，並提高脂肪比例。
+                                </p>
+                            </div>
+
+                            <div id="template-carb-cycling-diet" class="hidden space-y-3">
+                                <div class="pt-2 border-t border-yellow-500/30">
+                                    <p class="text-sm text-center font-semibold text-yellow-400 mb-2">高碳日目標 (訓練日)</p>
+                                    <div class="grid grid-cols-4 gap-2 text-center">
+                                        <div><p class="text-xs text-gray-400">熱量</p><p data-goal="highcarb-calories" class="font-semibold">--</p></div>
+                                        <div><p class="text-xs text-gray-400">蛋白</p><p data-goal="highcarb-protein" class="font-semibold">--</p></div>
+                                        <div><p class="text-xs text-gray-400">脂肪</p><p data-goal="highcarb-fat" class="font-semibold">--</p></div>
+                                        <div><p class="text-xs text-gray-400">碳水</p><p data-goal="highcarb-carbs" class="font-semibold">--</p></div>
+                                    </div>
+                                </div>
+                                <div class="pt-2 border-t border-gray-700">
+                                    <p class="text-sm text-center font-semibold text-gray-300 mb-2">低碳日目標 (休息日)</p>
+                                    <div class="grid grid-cols-4 gap-2 text-center">
+                                        <div><p class="text-xs text-gray-400">熱量</p><p data-goal="lowcarb-calories" class="font-semibold">--</p></div>
+                                        <div><p class="text-xs text-gray-400">蛋白</p><p data-goal="lowcarb-protein" class="font-semibold">--</p></div>
+                                        <div><p class="text-xs text-gray-400">脂肪</p><p data-goal="lowcarb-fat" class="font-semibold">--</p></div>
+                                        <div><p class="text-xs text-gray-400">碳水</p><p data-goal="lowcarb-carbs" class="font-semibold">--</p></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="pt-4 border-t border-yellow-500/30">
+                            <label class="block text-sm font-medium text-gray-300 mb-1">階段訓練方向</label>
+                            <!-- 加入 whitespace-pre-wrap class -->
+                            <p class="view-mode whitespace-pre-wrap w-full rounded-md p-2 bg-black/30" data-placeholder="無">無</p>
+                            <textarea data-key="training_direction" rows="4" placeholder="記錄此階段的訓練目標與方向" class="edit-mode hidden w-full rounded-md p-2"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 全域資料編輯按鈕 -->
+                <div id="profile-actions-container" class="mt-6">
+                    <button id="edit-profile-btn" class="w-full bg-gray-700 hover:bg-gray-600 p-3 rounded-md font-semibold text-lg">更新個人資料</button>
+                    <div id="edit-profile-actions" class="hidden grid grid-cols-2 gap-4">
+                        <button id="cancel-profile-btn" class="w-full bg-gray-500 hover:bg-gray-400 text-black p-3 rounded-md font-semibold">取消</button>
+                        <button id="save-profile-btn" class="w-full bg-yellow-500 hover:bg-yellow-600 border border-yellow-400 text-black p-3 rounded-md font-semibold btn-glow">儲存全部變更</button>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- ==== 健身紀錄頁 ==== -->
+            <div id="page-workout" class="page">
+                <h2 class="text-2xl font-bold mb-4 text-center text-yellow-400 drop-shadow-[0_0_5px_rgba(255,195,0,0.5)] flex items-center justify-center">
+                    <span>訓練日誌</span>                    
+                </h2>
+                <input type="date" id="workout-date-input" class="bg-transparent text-gray-400 border-none focus:ring-0 p-0 text-right">
+                
+                <div class="card p-2 rounded-lg mb-4 text-center">
+                    <p class="text-sm text-gray-400">當日總容量</p>
+                    <p id="daily-total-volume-display" class="text-3xl font-bold text-yellow-400">0 公斤</p>
+                </div>
+
+                <div id="workout-list" class="space-y-4">
+                    <!-- 範例動作，實際由 JS 動態產生 -->
+                </div>
+
+                <div class="mt-6 grid grid-cols-2 gap-4">
+                    <button id="add-exercise-btn" class="w-full bg-[#2d2a27] hover:bg-black border border-gray-600 p-3 rounded-md font-semibold">+ 新增動作</button>
+                    <button id="load-template-btn" class="w-full bg-[#2d2a27] hover:bg-black border border-gray-600 p-3 rounded-md font-semibold">載入範本</button>
+                    <button id="save-as-template-btn" class="w-full bg-[#2d2a27] hover:bg-black border border-gray-600 p-3 rounded-md font-semibold">另存為範本</button>
+                    <button id="clear-workout-btn" class="w-full bg-red-800/80 hover:bg-red-700/100 border border-red-600 p-3 rounded-md font-semibold">全部刪除</button>
+                    <button id="save-workout-btn" class="col-span-2 w-full bg-yellow-500 hover:bg-yellow-600 border border-yellow-400 text-black p-4 rounded-md font-semibold btn-glow text-lg">儲存本日訓練</button>
+                </div>
+            </div>
+
+            <!-- ==== 成就紀錄頁 ==== -->
+            <div id="page-prs" class="page">
+                <div class="grid grid-cols-3 items-center mb-4">
+        
+                    <div></div>
+
+                    <h2 class="text-2xl font-bold text-center text-yellow-400 drop-shadow-[0_0_5px_rgba(255,195,0,0.5)]">成就紀錄</h2>
+
+                    <div class="justify-self-end">
+                        <button id="edit-prs-btn" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-md text-sm font-semibold">編輯分類</button>
+                        <div id="prs-edit-actions" class="hidden flex space-x-2">
+                            <button id="cancel-prs-btn" class="bg-gray-500 hover:bg-gray-400 text-black px-4 py-2 rounded-md text-sm font-semibold">取消</button>
+                            <button id="save-prs-btn" class="bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-md text-sm font-semibold btn-glow">儲存變更</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="prs-loading" class="text-center p-8 text-gray-400">
+                    <p>正在載入個人紀錄...</p>
+                </div>
+
+                <div id="prs-content" class="hidden space-y-6">
+                    <div>
+                        <h3 class="text-lg font-semibold text-yellow-500 mb-2 border-b border-yellow-500/30 pb-1">個人最佳紀錄 (Bests)</h3>
+                        <div id="bests-container" class="space-y-3">
+                            </div>
+                    </div>
+
+                    <div>
+                        <h3 class="text-lg font-semibold text-yellow-500 mb-2 border-b border-yellow-500/30 pb-1">各RM區間紀錄 (Rep PRs)</h3>
+                        <div id="rep-prs-container" class="space-y-4">
+                            </div>
+                    </div>
+                </div>
+
+                <div id="prs-empty" class="hidden text-center p-8 text-gray-400">
+                    <ion-icon name="trophy-outline" class="text-5xl mx-auto mb-2"></ion-icon>
+                    <p>尚未有任何個人紀錄。</p>
+                    <p>當您的訓練超越過往表現時，紀錄將會自動出現在這裡。</p>
+                </div>
+            </div>
+
+            <!-- ==== 體態記錄頁 ==== -->
+            <div id="page-stats" class="page">
+                 <h2 class="text-2xl font-bold mb-4 text-center text-yellow-400 drop-shadow-[0_0_5px_rgba(255,195,0,0.5)]">體態記錄</h2>
+                
+                 <div id="previous-photos-section" class="card p-4 rounded-lg space-y-2 mb-4">
+                     <h3 class="text-lg font-semibold text-yellow-500 border-b border-yellow-500/30 pb-2">前一次體態記錄 (<span id="prev-photo-date">N/A</span>)</h3>
+                     <div class="grid grid-cols-3 gap-2 text-center">
+                         <div id="prev-photo-front-container" class="bg-black/30 aspect-square flex items-center justify-center rounded text-gray-500">尚無記錄</div>
+                         <div id="prev-photo-side-container" class="bg-black/30 aspect-square flex items-center justify-center rounded text-gray-500">尚無記錄</div>
+                         <div id="prev-photo-back-container" class="bg-black/30 aspect-square flex items-center justify-center rounded text-gray-500">尚無記錄</div>
+                     </div>
+                 </div>
+
+                <button id="open-compare-modal-btn" class="w-full bg-[#2d2a27] hover:bg-black border border-gray-600 text-white font-bold py-3 px-4 rounded-md shadow-md transition duration-300 mb-4 flex items-center justify-center">
+                    <ion-icon name="git-compare-outline" class="mr-2 text-xl"></ion-icon>
+                    <span>開啟歷史對比</span>
+                </button>
+
+                <div class="card p-4 rounded-lg space-y-4">
+                     <h3 class="text-lg font-semibold text-yellow-500 border-b border-yellow-500/30 pb-2">更新今日體態</h3>
+                     <div>
+                        <label for="photo-date-input" class="block text-sm font-medium text-gray-300">記錄日期</label>
+                        <input type="date" id="photo-date-input" class="mt-1 w-full rounded-md p-2">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 pt-2">
+                        <div>
+                            <label for="photo-weight-input" class="block text-sm font-medium text-gray-300">體重 (kg)</label>
+                            <input type="number" id="photo-weight-input" min="0" placeholder="例如: 75.5" class="mt-1 w-full rounded-md p-2">
+                        </div>
+                        <div>
+                            <label for="photo-bodyfat-input" class="block text-sm font-medium text-gray-300">體脂率 (%)</label>
+                            <input type="number" id="photo-bodyfat-input" min="0" placeholder="例如: 15.2" class="mt-1 w-full rounded-md p-2">
+                        </div>
+                    </div>
+                    <div>
+                        <label for="photo-front-upload" class="block text-sm font-medium text-gray-300">正面照片</label>
+                        <input type="file" id="photo-front-upload" class="mt-1 w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-gray-700 file:text-white hover:file:bg-gray-600 cursor-pointer">
+                    </div>
+                     <div>
+                        <label for="photo-side-upload" class="block text-sm font-medium text-gray-300">側面照片</label>
+                        <input type="file" id="photo-side-upload" class="mt-1 w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-gray-700 file:text-white hover:file:bg-gray-600 cursor-pointer">
+                    </div>
+                     <div>
+                        <label for="photo-back-upload" class="block text-sm font-medium text-gray-300">背面照片</label>
+                        <input type="file" id="photo-back-upload" class="mt-1 w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-gray-700 file:text-white hover:file:bg-gray-600 cursor-pointer">
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 text-center mt-4">
+                        <div id="photo-front-preview" class="bg-black/30 aspect-square flex items-center justify-center rounded text-gray-500">正面預覽</div>
+                        <div id="photo-side-preview" class="bg-black/30 aspect-square flex items-center justify-center rounded text-gray-500">側面預覽</div>
+                        <div id="photo-back-preview" class="bg-black/30 aspect-square flex items-center justify-center rounded text-gray-500">背面預覽</div>
+                    </div>
+                     <button id="save-photos-btn" class="w-full bg-yellow-500 hover:bg-yellow-600 border border-yellow-400 text-black p-3 rounded-md font-semibold btn-glow">儲存體態照片</button>
+                </div>
+
+            </div>
+
+             <!-- ==== 歷史紀錄頁 ==== -->
+            <div id="page-history" class="page">
+                <div class="flex justify-between items-center mb-4">
+                    <div class="w-10 h-10"></div>
+                    
+                    <h2 class="text-2xl font-bold text-yellow-400 drop-shadow-[0_0_5px_rgba(255,195,0,0.5)]">資料分析</h2>
+                    
+                    <button id="refresh-analysis-btn" class="p-2 rounded-md text-gray-300 hover:bg-gray-700/50 hover:text-yellow-400 transition-colors">
+                        <ion-icon name="refresh-outline" class="text-2xl pointer-events-none"></ion-icon>
+                    </button>
+                </div>
+
+                <div id="history-loading" class="text-center p-8 text-gray-400">
+                    <p>正在載入歷史數據...</p>
+                </div>
+                
+                <div id="history-content" class="hidden space-y-6">
+                    <div class="card p-4 rounded-lg">
+                        <h3 class="text-lg font-semibold text-yellow-500 mb-3 text-center">訓練頻率熱力圖</h3>
+                        <div id="heatmap-container" class="mx-auto w-full overflow-x-auto"></div>
+                    </div>
+
+                    <div class="card p-4 rounded-lg">
+                        <h3 class="text-lg font-semibold text-yellow-500 mb-2 text-center">近 3 個月體態趨勢</h3>
+                        <canvas id="body-stats-chart"></canvas>
+                    </div>
+
+                    <div class="card p-4 rounded-lg">
+                        <h3 class="text-lg font-semibold text-yellow-500 mb-2 text-center">訓練量佔比</h3>
+                        <div class="max-w-[300px] mx-auto"> <canvas id="category-distribution-chart"></canvas>
+                        </div>
+                        <div id="category-legend-container" class="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2">
+                        </div>
+                    </div> 
+
+                    <div class="card p-4 rounded-lg">
+                        <h3 class="text-lg font-semibold text-yellow-500 mb-2 text-center">近 3 個月訓練容量趨勢</h3>
+                        <canvas id="volume-chart"></canvas> 
+                    </div>                                       
+
+                    <div class="card p-4 rounded-lg">
+                        <h3 class="text-lg font-semibold text-yellow-500 mb-2 text-center">近 3 個月單一動作進步趨勢</h3>
+                        <select id="exercise-progress-select" class="w-full rounded-md p-2 mb-4">
+                            <option value="">請選擇一個動作來分析</option>
+                        </select>
+                        <canvas id="exercise-progress-chart"></canvas>
+                        <div id="exercise-notes-container" class="mt-6 hidden space-y-3">
+                            <h4 class="text-base font-semibold text-yellow-500 border-b border-yellow-500/30 pb-1">訓練備註</h4>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="history-empty" class="hidden text-center p-8 text-gray-400">
+                    <ion-icon name="analytics-outline" class="text-5xl mx-auto mb-2"></ion-icon>
+                    <p>尚無足夠數據可供分析。</p>
+                    <p>請先記錄您的個人資料與訓練日誌。</p>
+                </div>
+            </div>
+        </main>
+		
+		    <div id="rest-timer-bar" class="hidden fixed bottom-16 left-0 right-0 max-w-lg mx-auto p-2 z-20">
+            <div class="card flex items-center justify-between p-2 rounded-lg shadow-lg w-full">
+                <button id="timer-minus-15" class="p-2 text-lg text-gray-400 hover:text-white">-15s</button>
+                <div class="text-center">
+                    <p class="text-3xl font-mono font-bold text-yellow-400" id="timer-display">00:30</p>
+                    <p class="text-xs text-gray-500">休息倒數</p>
+                </div>
+                <button id="timer-plus-15" class="p-2 text-lg text-gray-400 hover:text-white">+15s</button>
+                <button id="timer-reset" class="p-2 text-2xl text-red-500 hover:text-red-400">
+                    <ion-icon name="close-circle-outline"></ion-icon>
+                </button>
+            </div>
+        </div>
+		
+        <!-- 底部導覽列 -->
+        <nav class="fixed bottom-0 left-0 right-0 max-w-lg mx-auto bg-[#1c1a19]/80 border-t border-yellow-500/30 flex justify-around p-2 z-30 backdrop-filter backdrop-blur-sm">
+
+            <button onclick="app.navigateTo('dashboard')" class="nav-item flex-1 flex justify-center items-center p-2 rounded-lg text-yellow-400 gap-2">
+                <ion-icon name="person-circle-outline" class="text-2xl flex-shrink-0"></ion-icon>
+                <span class="text-xs leading-tight">個人<br>資訊</span>
+            </button>
+
+            <button onclick="app.navigateTo('workout')" class="nav-item flex-1 flex justify-center items-center p-2 rounded-lg text-gray-400 hover:bg-gray-700/50 gap-2">
+                <ion-icon name="barbell-outline" class="text-2xl flex-shrink-0"></ion-icon>
+                <span class="text-xs">日誌</span>
+            </button>
+
+            <button onclick="app.navigateTo('prs')" class="nav-item flex-1 flex justify-center items-center p-2 rounded-lg text-gray-400 hover:bg-gray-700/50 gap-2">
+                <ion-icon name="trophy-outline" class="text-2xl flex-shrink-0"></ion-icon>
+                <span class="text-xs">成就</span>
+            </button>
+
+            <button onclick="app.navigateTo('stats')" class="nav-item flex-1 flex justify-center items-center p-2 rounded-lg text-gray-400 hover:bg-gray-700/50 gap-2">
+                <ion-icon name="body-outline" class="text-2xl flex-shrink-0"></ion-icon>
+                <span class="text-xs">體態</span>
+            </button>
+
+            <button onclick="app.navigateTo('history')" class="nav-item flex-1 flex justify-center items-center p-2 rounded-lg text-gray-400 hover:bg-gray-700/50 gap-2">
+                <ion-icon name="stats-chart-outline" class="text-2xl flex-shrink-0"></ion-icon>
+                <span class="text-xs">分析</span>
+            </button>           
+
+        </nav>
+    </div>
+
+    <template id="exercise-card-template">
+          <div class="card p-4 rounded-lg">
+              <div class="flex justify-between items-center border-b border-yellow-500/30 pb-2 mb-3">
+                  <div class="flex items-center gap-2">
+                      <ion-icon name="menu-outline" class="js-drag-handle text-2xl text-gray-500 cursor-grab"></ion-icon>
+                      <h3 class="text-lg font-semibold text-yellow-400"></h3>
+                  </div>
+                  <button class="js-delete-exercise p-1 text-red-500 hover:text-red-400 transition-colors duration-200">
+                      <ion-icon name="close-circle-outline" class="text-2xl pointer-events-none"></ion-icon>
+                  </button>
+              </div>
+              
+              <p class="text-sm text-yellow-300/80 mb-2 js-last-performance">查詢中...</p>
+              
+              <div class="flex justify-end items-baseline space-x-2 -mt-2 mb-2">
+                  <span class="text-xs text-gray-400">總容量:</span>
+                  <p class="text-xl font-bold text-white js-volume-display">0 公斤</p>
+              </div>
+
+              <div class="space-y-2 mt-2 js-sets-container">
+                  </div>
+        
+        <div class="mt-3">
+          <textarea class="js-exercise-note w-full rounded-md p-2 text-sm" rows="2" placeholder="為這個動作新增備註..."></textarea>
+        </div>        
+              <div class="grid grid-cols-3 gap-2 mt-3">                  
+                  <button class="w-full text-sm bg-yellow-600/80 hover:bg-yellow-500/80 border border-yellow-700 rounded-md p-1 js-start-timer">開始休息</button>
+                  <button class="w-full text-sm bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-md p-1 js-copy-set">複製上一組</button>
+                  <button class="w-full text-sm bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-md p-1 js-add-set">+ 新增組數</button>
+              </div>
+          </div>
+      </template>
+
+      <template id="set-row-template">
+          <div class="flex items-center space-x-2 js-set-row relative">
+              <span class="js-pr-badge hidden absolute -left-1 -top-1 bg-yellow-400 text-black text-xs font-bold px-2 py-0.5 rounded-full shadow-md animate-pulse"></span>              
+              <span class="js-set-number w-12 text-center text-gray-400 text-sm flex-shrink-0"></span>
+              <div class="flex-grow grid grid-cols-2 gap-x-2">
+                  <div class="flex items-center space-x-2">
+                      <input type="number" min="0" class="w-full rounded-md p-2 text-center js-weight-input">
+                      <select class="rounded-md p-2 bg-black border border-yellow-500 text-sm appearance-none text-center js-unit-select">
+                          <option>公斤</option>
+                          <option>磅</option>
+                      </select>
+                  </div>
+                  <div class="flex items-center space-x-2">
+                      <input type="number" min="0" class="w-full rounded-md p-2 text-center js-reps-input">
+                      <span class="text-gray-400 text-lg">次</span>
+                  </div>
+              </div>
+              <button class="js-delete-set p-1 text-gray-500 hover:text-red-500 transition-colors duration-200">
+                  <ion-icon name="trash-outline" class="text-xl pointer-events-none"></ion-icon>
+              </button>
+          </div>
+      </template>
+
     <script type="module" src="/src/main.js"></script>
 </body>
 </html>

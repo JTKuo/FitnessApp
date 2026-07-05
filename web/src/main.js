@@ -1,14 +1,25 @@
 import './style.css';
+import Chart from 'chart.js/auto';
+import 'chartjs-adapter-date-fns';
+import ChartDataLabels from 'chartjs-plugin-datalabels';
+import CalHeatmap from 'cal-heatmap';
+import 'cal-heatmap/cal-heatmap.css';
+import Sortable from 'sortablejs';
+import imageCompression from 'browser-image-compression';
 import { initAuth } from './auth.js';
-import { backendApi } from './api.js';
+import { app } from './app.js';
 
-initAuth(async () => {
-  const out = document.getElementById('smoke-result');
-  out.textContent = '登入成功，呼叫 getInitialData...';
-  try {
-    const data = await backendApi.getInitialData();
-    out.textContent = '✅ getInitialData OK\n' + JSON.stringify(data.profile, null, 2);
-  } catch (e) {
-    out.textContent = '❌ ' + e.message;
+// 搬移的程式碼以全域名稱引用這些函式庫，維持原樣、以掛載頂替 CDN
+window.Chart = Chart;
+window.CalHeatmap = CalHeatmap;
+window.Sortable = Sortable;
+window.imageCompression = imageCompression;
+Chart.register(ChartDataLabels);
+
+let started = false;
+initAuth(() => {
+  if (!started) {
+    started = true;
+    app.init();
   }
 });

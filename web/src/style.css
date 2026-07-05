@@ -1,1 +1,246 @@
 @import "tailwindcss";
+
+        /* --- 工業風格 UI 定制 (黃/黑/灰棕) --- */
+        :root {
+            --color-yellow: #ffc300;
+            --color-dark-brown: #2d2a27;
+            --color-black: #000000;
+        }
+        body {
+            -webkit-tap-highlight-color: transparent;
+            font-family: 'Exo 2', sans-serif;
+            background-color: var(--color-black);
+        }
+        .main-container {
+            background-color: var(--color-dark-brown);
+            background-image:
+                linear-gradient(rgba(255, 195, 0, 0.07) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 195, 0, 0.07) 1px, transparent 1px);
+            background-size: 2.5rem 2.5rem;
+        }
+        .page {
+            display: none;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        .page.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 載入動畫 */
+        .loader-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .loader-ring {
+            position: absolute;
+            border: 4px solid transparent;
+            border-radius: 50%;
+            animation: spin 1.5s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+        }
+        .loader-ring:nth-child(1) {
+            width: 120px;
+            height: 120px;
+            border-top-color: var(--color-yellow);
+        }
+        .loader-ring:nth-child(2) {
+            width: 100px;
+            height: 100px;
+            border-bottom-color: #ffffff;
+            animation-delay: -0.2s;
+        }
+         .loader-ring:nth-child(3) {
+            width: 80px;
+            height: 80px;
+            border-left-color: var(--color-yellow);
+            animation-delay: -0.4s;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* --- 動畫效果 --- */
+        .animated-item {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .fade-in {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+        .is-visible {
+            opacity: 1;
+            transform: scale(1);
+        }
+        /* 按鈕輝光效果 */
+        .btn-glow {
+            box-shadow: 0 0 8px rgba(255, 195, 0, 0.6), 0 0 12px rgba(255, 195, 0, 0.4);
+        }
+        .btn-glow:hover {
+            box-shadow: 0 0 18px rgba(255, 195, 0, 0.8), 0 0 30px rgba(255, 195, 0, 0.6);
+        }
+        /* 卡片/容器樣式 */
+        .card {
+            background-color: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 195, 0, 0.3);
+            backdrop-filter: blur(5px);
+        }
+        /* 輸入框樣式 */
+        input, select, textarea {
+            background-color: var(--color-black);
+            border: 1px solid var(--color-yellow);
+            color: #e0e6e9;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            box-shadow: 0 0 10px rgba(255, 195, 0, 0.7);
+        }
+        /* --- Toast 通知樣式 --- */
+        #toast-notification {
+            /* ✅ 1. 限制最大寬度，確保內容會自動換行 */
+            max-width: 90%; 
+            /* ✅ 2. 增加更深的陰影，營造立體感 */
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+            /* ✅ 3. 加上細微邊框，增加與背景的區隔 */
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            
+            animation-duration: 0.5s;
+            animation-fill-mode: both;
+        }
+        #toast-notification.toast-in {
+            animation-name: toast-in;
+        }
+        #toast-notification.toast-out {
+            animation-name: toast-out;
+        }
+        @keyframes toast-in {
+            from { opacity: 0; transform: translate(-50%, -20px); }
+            to { opacity: 1; transform: translate(-50%, 0); }
+        }
+        @keyframes toast-out {
+            from { opacity: 1; transform: translate(-50%, 0); }
+            to { opacity: 0; transform: translate(-50%, -20px); }
+        }
+
+        /* --- 拖曳時的游標和卡片樣式 --- */
+        .js-drag-handle:active,
+        .js-pr-drag-handle:active {
+            cursor: grabbing;
+        }        
+        .sortable-ghost {
+            opacity: 0.4;
+            background: #4a4642; /* 拖曳佔位符的背景色 */
+        }
+        .sortable-chosen {
+            cursor: grabbing; 
+            transform: scale(1.02);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+
+        /* 彈出視窗樣式 */
+        .modal-backdrop {
+            background-color: rgba(0,0,0,0.8);
+            backdrop-filter: blur(5px);
+        }
+        .modal {
+            animation: modal-pop-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes modal-pop-in {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        /* 用於個人資料顯示的樣式 */
+        .view-mode {
+            min-height: 42px; /* 與輸入框高度保持一致 */
+        }
+        
+        /* 客製化日期選擇器圖示 */
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1) brightness(0.8) sepia(1) hue-rotate(10deg) saturate(1000%);
+            cursor: pointer;
+            font-size: 1.2em;
+        }
+
+        /* --- 新成就 PR 特效 --- */
+        .new-pr-badge, .new-pr-crown {
+            display: none; /* 預設隱藏 */
+            position: absolute;
+        }
+        /* 當卡片有 .is-new-pr 這個 class 時，才顯示特效 */
+        .is-new-pr .new-pr-badge,
+        .is-new-pr .new-pr-crown {
+            display: block;
+        }
+        /* 卡片本體增加輝光效果 */
+        .is-new-pr {
+            position: relative; /* 讓絕對定位的子元素有參考點 */
+            box-shadow: 0 0 15px rgba(255, 195, 0, 0.8), 0 0 25px rgba(255, 195, 0, 0.6);
+            border-color: rgba(255, 195, 0, 0.7);
+        }
+        /* "NEW" 徽章的樣式 */
+        .new-pr-badge {
+            top: -10px;
+            right: -10px;
+            background-color: #ffc300;
+            color: #000;
+            font-size: 0.75rem;
+            font-weight: bold;
+            padding: 2px 8px;
+            border-radius: 9999px;
+            animation: pulse 1.5s infinite;
+        }
+        /* 皇冠圖示的樣式 */
+        .new-pr-crown {
+            top: -12px;
+            left: -8px;
+            color: #ffc300;
+            font-size: 1.8rem;
+            transform: rotate(-15deg);
+            filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5));
+        }
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.1); }
+        }
+
+        /* 成就頁面編輯模式的樣式 */
+        .pr-card.is-editable {
+            cursor: grab;
+            border: 1px dashed rgba(255, 195, 0, 0.5);
+        }
+        .pr-card.is-editable:hover {
+            background-color: rgba(255, 195, 0, 0.1);
+        }
+
+        /* 圖片 Modal 的樣式 */
+        #image-modal-close {
+            transition: transform 0.2s ease;
+        }
+        #image-modal-close:hover {
+            transform: scale(1.1);
+        }
+
+        /* 成就頁面分類標題的樣式 */
+        .category-title {
+            border-left: 4px solid var(--color-yellow);
+            padding-left: 0.75rem;
+        }
+
+        #heatmap-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            padding: 0.5rem; /* 在四周都留下一點邊距 */
+            box-sizing: border-box;
+            min-height: 170px; /* 給一個最小高度避免無數據時塌陷 */
+        }
+
+        #heatmap-container svg.cal-heatmap-container {
+            width: 100% !important;
+            height: auto !important;
+            overflow: visible !important;
+        }
