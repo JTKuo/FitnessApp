@@ -13,3 +13,8 @@ Thumbs.db
 # 本機暫存
 *.log
 tmp/
+
+# 前端建置
+web/node_modules/
+web/dist/
+web/dev-dist/
