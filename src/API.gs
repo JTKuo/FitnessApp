@@ -3,14 +3,18 @@
 // =======================================================
 
 /**
- * 當使用者存取 Web App URL 時，提供前端介面服務。
- * @param {object} e - 事件物件。
- * @returns {HtmlOutput} - 渲染後的 HTML 頁面。
+ * 舊版入口：前端已遷至 GitHub Pages，這裡只留搬家指引。
+ * （GAS sandbox iframe 內自動轉址不可靠，提供顯眼連結即可。）
  */
-function doGet(e) {
-  return HtmlService.createTemplateFromFile('index').evaluate()
-    .setTitle('個人化健身暨健康追蹤')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
+function doGet() {
+  const APP_URL = 'https://jtkuo.github.io/FitnessApp/';
+  return HtmlService.createHtmlOutput(
+    '<div style="font-family:sans-serif;text-align:center;padding:3rem;background:#000;color:#fff;min-height:100vh;">' +
+    '<h2 style="color:#ffc300;">App 已搬新家 🎉</h2>' +
+    '<p style="margin-top:1rem;"><a style="color:#ffc300;font-size:1.2rem;" href="' + APP_URL + '" target="_blank" rel="noopener">點此開啟新版 →</a></p>' +
+    '<p style="color:#888;margin-top:1rem;">請將新網址加入書籤或加到手機主畫面。</p>' +
+    '</div>'
+  ).setTitle('個人化健身暨健康追蹤');
 }
 
 // =======================================================
@@ -70,14 +74,6 @@ function doPost(e) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-/**
- * 允許前端載入外部 CSS 和 JS 檔案。
- * @param {string} filename - 要載入的檔案名稱。
- * @returns {string} - 檔案內容。
- */
-function include(filename) {
-  return HtmlService.createHtmlOutputFromFile(filename).getContent();
-}
 
 
 // =======================================================
