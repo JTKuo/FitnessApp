@@ -1,0 +1,15 @@
+# clasp 登入憑證（絕不可進版控）
+.clasprc.json
+
+# Node
+node_modules/
+
+# 編輯器與系統
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# 本機暫存
+*.log
+tmp/
