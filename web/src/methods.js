@@ -240,7 +240,7 @@ export const methods = {
                     if (bodyStatsCtx) {
                         app.state.charts.bodyStats = new Chart(bodyStatsCtx.getContext('2d'), {
                             type: 'line',
-                            data: { datasets: [ { label: '體重 (kg)', data: data.weightHistory, borderColor: '#ffc300', backgroundColor: 'rgba(255, 195, 0, 0.2)', yAxisID: 'y', tension: 0.1, fill: true, }, { label: '體脂率 (%)', data: data.bodyfatHistory, borderColor: '#38bdf8', backgroundColor: 'rgba(56, 189, 248, 0.2)', yAxisID: 'y1', tension: 0.1, fill: true, } ] },
+                            data: { datasets: [ { label: '體重 (kg)', data: data.weightHistory, borderColor: '#ffc300', backgroundColor: 'rgba(255, 195, 0, 0.2)', yAxisID: 'y', tension: 0.1, fill: true, }, { label: '體脂率 (%)', data: data.bodyfatHistory, borderColor: '#38bdf8', backgroundColor: 'rgba(56, 189, 248, 0.2)', yAxisID: 'y1', tension: 0.1, fill: true, }, { label: '骨骼肌重 (kg)', data: data.smmHistory || [], borderColor: '#a78bfa', backgroundColor: 'rgba(167, 139, 250, 0.2)', yAxisID: 'y', tension: 0.1, fill: false, } ] },
                             options: {
                                 responsive: true,
                                 aspectRatio: 1.6,
