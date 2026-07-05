@@ -55,6 +55,7 @@ export const methods = {
                         app.state.user.profileData = data.profile.profileData;
 
                         app.ui.populateProfileData(profile.profileData);
+                        app.methods.loadInBodyRecords();
                         app.methods.calculateRecommendations();
                         app.ui.populateLatestPhotos(profile.latestPhotos);
                         app.ui.populateTemplateList(templates);
@@ -170,6 +171,7 @@ export const methods = {
 
                             app.state.user.profileData = { ...app.state.user.profileData, ...newDataFromForm };
                             app.ui.populateProfileData(app.state.user.profileData);
+                            app.methods.loadInBodyRecords();
                             app.methods.toggleProfileEditMode(false);
                             app.methods.calculateRecommendations();
                         })
@@ -764,6 +766,7 @@ export const methods = {
                         }
                         if(response.updatedProfileData){
                             app.ui.populateProfileData(response.updatedProfileData);
+                            app.methods.loadInBodyRecords();
                             app.methods.calculateRecommendations();
                         }
 
@@ -796,6 +799,114 @@ export const methods = {
                     } catch (error) {
                         console.error('圖片壓縮失敗:', error);
                         throw new Error('圖片壓縮失敗，請稍後再試。');
+                    }
+                },
+
+                // === InBody 量測記錄 (R1) ===
+                async loadInBodyRecords() {
+                    const list = document.getElementById('inbody-list');
+                    if (!list) return;
+                    try {
+                        const records = await app.api.getInBodyRecords(app.state.user.currentUser);
+                        this.renderInBodyList(records);
+                    } catch (error) {
+                        list.innerHTML = '<p class="text-red-400 text-sm">量測記錄載入失敗</p>';
+                    }
+                },
+
+                renderInBodyList(records) {
+                    const list = document.getElementById('inbody-list');
+                    if (!list) return;
+                    const isViewingSelf = !app.state.user.loggedInEmail || app.state.user.currentUser === app.state.user.loggedInEmail;
+                    const addBtn = document.getElementById('add-inbody-btn');
+                    if (addBtn) addBtn.classList.toggle('hidden', !isViewingSelf);
+                    if (!records || records.length === 0) {
+                        list.innerHTML = '<p class="text-gray-500 text-sm">尚無量測記錄</p>';
+                        return;
+                    }
+                    list.innerHTML = records.map(r => {
+                        const dateStr = String(r.date).slice(0, 10);
+                        const nums = [
+                            r.weight != null ? `體重 ${r.weight} kg` : null,
+                            r.bodyfat != null ? `體脂 ${r.bodyfat}%` : null,
+                            r.smm != null ? `骨骼肌 ${r.smm} kg` : null,
+                        ].filter(Boolean).join('｜');
+                        return `
+                        <div class="border border-gray-700 rounded-md p-2">
+                            <div class="flex justify-between items-center">
+                                <div class="text-sm"><span class="text-yellow-400">${dateStr}</span>　${nums}</div>
+                                <div class="flex items-center gap-2">
+                                    ${r.photoId ? `<button onclick="app.methods.toggleInBodyPhoto('${r.id}', '${r.photoId}')" class="p-1" aria-label="檢視量測單"><ion-icon name="image-outline" class="text-xl text-yellow-400 pointer-events-none"></ion-icon></button>` : ''}
+                                    ${isViewingSelf ? `<button onclick="app.methods.removeInBodyRecord('${r.id}')" class="p-1" aria-label="刪除記錄"><ion-icon name="trash-outline" class="text-xl text-gray-500 hover:text-red-500 pointer-events-none"></ion-icon></button>` : ''}
+                                </div>
+                            </div>
+                            <div id="inbody-photo-${r.id}" class="hidden mt-2 h-48"></div>
+                        </div>`;
+                    }).join('');
+                },
+
+                toggleInBodyPhoto(recordId, photoId) {
+                    const container = document.getElementById(`inbody-photo-${recordId}`);
+                    if (!container) return;
+                    container.classList.toggle('hidden');
+                    if (!container.classList.contains('hidden') && !container.dataset.loaded) {
+                        container.dataset.loaded = '1';
+                        renderDrivePhoto(container, photoId, 'InBody 量測單');
+                    }
+                },
+
+                openInBodyModal() {
+                    const dateInput = document.getElementById('inbody-date');
+                    if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
+                    ['inbody-weight', 'inbody-bodyfat', 'inbody-smm', 'inbody-photo'].forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.value = '';
+                    });
+                    document.getElementById('inbody-modal')?.classList.remove('hidden');
+                },
+
+                closeInBodyModal() {
+                    document.getElementById('inbody-modal')?.classList.add('hidden');
+                },
+
+                async saveInBodyRecordFromModal() {
+                    const date = document.getElementById('inbody-date')?.value;
+                    const weight = document.getElementById('inbody-weight')?.value;
+                    const bodyfat = document.getElementById('inbody-bodyfat')?.value;
+                    const smm = document.getElementById('inbody-smm')?.value;
+                    const photoFile = document.getElementById('inbody-photo')?.files[0];
+                    if (!date) { app.ui.showToast('請選擇量測日期', 'error'); return; }
+                    if (!weight && !bodyfat && !smm) { app.ui.showToast('體重、體脂率、骨骼肌至少填一項', 'error'); return; }
+                    try {
+                        app.ui.showLoading(true);
+                        const record = { date, weight, bodyfat, smm };
+                        if (photoFile) record.photo = await this._compressAndReadFileAsBase64(photoFile);
+                        const res = await app.api.saveInBodyRecord(record);
+                        if (res.updatedProfileData) {
+                            app.state.user.profileData = res.updatedProfileData;
+                            app.ui.populateProfileData(res.updatedProfileData);
+                        }
+                        this.closeInBodyModal();
+                        app.ui.showToast(res.message || 'InBody 量測已儲存！', 'success');
+                        await this.loadInBodyRecords();
+                    } catch (error) {
+                        this.handleError(error, '儲存 InBody 量測失敗');
+                    } finally {
+                        app.ui.showLoading(false);
+                    }
+                },
+
+                async removeInBodyRecord(recordId) {
+                    if (!confirm('確定要刪除這筆量測記錄嗎？（照片將一併刪除）')) return;
+                    try {
+                        app.ui.showLoading(true);
+                        await app.api.deleteInBodyRecord(recordId);
+                        app.ui.showToast('記錄已刪除', 'success');
+                        await this.loadInBodyRecords();
+                    } catch (error) {
+                        this.handleError(error, '刪除失敗');
+                    } finally {
+                        app.ui.showLoading(false);
                     }
                 },
 

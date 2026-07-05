@@ -43,4 +43,7 @@ export const backendApi = {
   updateMultipleExerciseCategories: (changesArray) => apiCall('updateMultipleExerciseCategories', { changes: changesArray }),
   saveAdminComment: (userEmail, dateString, motion, comment) => apiCall('saveAdminComment', { userEmail, dateString, motion, comment }),
   getPhoto: (fileId, userEmail = null) => apiCall('getPhoto', { fileId, userEmail }),
+  saveInBodyRecord: (record) => apiCall('saveInBodyRecord', { record }),
+  getInBodyRecords: (userEmail = null) => apiCall('getInBodyRecords', { userEmail }),
+  deleteInBodyRecord: (recordId) => apiCall('deleteInBodyRecord', { recordId }),
 };

@@ -32,6 +32,7 @@ export const app = {
 
                     // 🆕 使用新的結構化狀態
                     this.state.user.currentUser = profile.email;
+                    if (!this.state.user.loggedInEmail) this.state.user.loggedInEmail = profile.email;
                     this.state.user.isAdmin = profile.isAdmin;
                     this.state.user.profileData = data.profile.profileData;
                     this.state.ui.shouldShowReminder = profile.shouldShowReminder;
@@ -39,6 +40,7 @@ export const app = {
                     this.state.cache.exerciseNameList = exerciseNames;
 
                     this.ui.populateProfileData(profile.profileData);
+                    this.methods.loadInBodyRecords();
                     this.methods.calculateRecommendations();
                     this.ui.populateLatestPhotos(profile.latestPhotos);
                     this.ui.populateTemplateList(templates);

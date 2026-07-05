@@ -3,6 +3,7 @@ export const initialState = {
                 // 使用者相關狀態
                 user: {
                     currentUser: null,
+                    loggedInEmail: null,
                     isAdmin: false,
                     profileData: null
                 },
