@@ -32,9 +32,8 @@ const API_ROUTES = {
   getAllPhotoRecords:               function (email, p) { return getAllPhotoRecords(email, p.userEmail || null); },
   getAllPRs:                        function (email, p) { return getAllPRs(email, p.userEmail || null); },
   updateMultipleExerciseCategories: function (email, p) { return updateMultipleExerciseCategoriesToServer(email, p.changes); },
-  saveAdminComment:                 function (email, p) { return saveAdminCommentToServer(email, p.userEmail, p.dateString, p.motion, p.comment); }
-  // getPhoto 於 Task 7 實作後解開：
-  // , getPhoto:                    function (email, p) { return getPhotoAsDataUrl(email, p.fileId, p.userEmail || null); }
+  saveAdminComment:                 function (email, p) { return saveAdminCommentToServer(email, p.userEmail, p.dateString, p.motion, p.comment); },
+  getPhoto:                         function (email, p) { return getPhotoAsDataUrl(email, p.fileId, p.userEmail || null); }
 };
 
 /**
@@ -684,7 +683,7 @@ function getAnalysisData(authedEmail, userEmail = null) {
         const stats = dailyMotionStats[set.motion];
         stats.totalVolume += set.volume;
         if (set.weight > stats.maxWeight) stats.maxWeight = set.weight;
-        const est1RM = set.reps === 1 ? set.weight : set.weight * 36 / (37 - set.reps);
+        const est1RM = calcEst1RM(set.weight, set.reps);
         if (est1RM > stats.bestE1RM) stats.bestE1RM = est1RM;
       });
 
@@ -934,21 +933,19 @@ function processWorkoutForPRs(authedEmail, workoutData) {
     // (保留清理當日舊紀錄的邏輯)
     const workoutDate = new Date(workoutData[0].date);
     const workoutDateString = workoutDate.toLocaleDateString();
-    if (prsSheet.getLastRow() > 1) {
-      const prsValues = prsSheet.getDataRange().getValues();
-      const filteredPrs = prsValues.filter((row, index) => {
+
+    // 讀出全部（含標頭），過濾掉當日舊 PR 後寫回；表空時 prsValues 只剩標頭列，後續邏輯自然成立
+    let prsValues = prsSheet.getDataRange().getValues();
+    if (prsValues.length > 1) {
+      prsValues = prsValues.filter(function (row, index) {
         if (index === 0) return true;
-        const recordDate = new Date(row[3]);
-        return recordDate.toLocaleDateString() !== workoutDateString;
+        return new Date(row[3]).toLocaleDateString() !== workoutDateString;
       });
       prsSheet.clearContents();
-      if (filteredPrs.length > 0) {
-        prsSheet.getRange(1, 1, filteredPrs.length, filteredPrs[0].length).setValues(filteredPrs);
-      }
+      prsSheet.getRange(1, 1, prsValues.length, prsValues[0].length).setValues(prsValues);
     }
 
     // --- 讀取歷史數據 ---
-    const prsValues = filteredPrs; 
     const bestsValues = bestsSheet.getDataRange().getValues();
     const prsMap = new Map(prsValues.slice(1).map((row, index) => [`${row[0]}-${row[1]}`, { maxWeight: row[2], rowIndex: index + 2 }]));
     const bestsMap = new Map(bestsValues.slice(1).map((row, index) => [row[0], { heaviest: row[1], bestE1RM: row[2], rowIndex: index + 2 }]));
@@ -968,10 +965,10 @@ function processWorkoutForPRs(authedEmail, workoutData) {
 
       if (!motion || !reps || !weight || reps <= 0 || weight <= 0) return;
 
-      let rmCategory;
-      if (reps <= 2) rmCategory = 1; else if (reps <= 4) rmCategory = 3; else if (reps <= 7) rmCategory = 5; else if (reps <= 9) rmCategory = 8; else if (reps >= 10) rmCategory = 10; else return;
-      
-      const est1RM = reps === 1 ? weight : weight * 36 / (37 - reps);
+      const rmCategory = getRmCategory(reps);
+      if (!rmCategory) return;
+
+      const est1RM = calcEst1RM(weight, reps);
 
       // (資料更新邏輯保持不變，但移除訊息產生)
       // 處理 Reps PR
@@ -1254,4 +1251,40 @@ function updateMultipleExerciseCategoriesToServer(authedEmail, changes) {
     Logger.log(`updateMultipleExerciseCategoriesToServer 錯誤: ${e.toString()}`);
     return { status: 'error', message: '後端批次更新失敗: ' + e.message };
   }
+}
+
+/**
+ * (API) 以 base64 data URL 回傳一張體態照片。
+ * 授權規則：照片檔案必須位於 PHOTOS_FOLDER_ID/<targetEmail>/ 之下，
+ * 而 targetEmail 由 _resolveTarget 決定（非 Admin 只能看自己的）。
+ * @returns {{dataUrl: string}}
+ */
+function getPhotoAsDataUrl(authedEmail, fileId, requestedEmail) {
+  if (!fileId || typeof fileId !== 'string') {
+    throw new Error('缺少照片 ID。');
+  }
+  const target = _resolveTarget(authedEmail, requestedEmail);
+
+  const file = DriveApp.getFileById(fileId);
+  let authorized = false;
+  const parents = file.getParents();
+  while (parents.hasNext()) {
+    const parent = parents.next();
+    if (parent.getName() === target.targetEmail) {
+      const grandParents = parent.getParents();
+      while (grandParents.hasNext()) {
+        if (grandParents.next().getId() === CONFIG.PHOTOS_FOLDER_ID) {
+          authorized = true;
+        }
+      }
+    }
+  }
+  if (!authorized) {
+    throw new Error('無權存取此照片。');
+  }
+
+  const blob = file.getBlob();
+  return {
+    dataUrl: 'data:' + blob.getContentType() + ';base64,' + Utilities.base64Encode(blob.getBytes())
+  };
 }
