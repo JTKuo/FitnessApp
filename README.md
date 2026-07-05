@@ -26,7 +26,7 @@ FitnessApp\
 ├── .github\workflows\    # GitHub Actions（自動部署前端）
 │   └── deploy.yml
 ├── scripts\              # 輔助腳本
-│   └── sync-pr-logic.js  # PR 邏輯同步（web → GAS）
+│   └── sync-pr-logic.mjs # PR 邏輯同步（web → GAS）
 ├── doc\                  # 文件
 │   └── Google sheet 資料結構說明.md
 ├── .clasp.json.example   # clasp 設定範本
