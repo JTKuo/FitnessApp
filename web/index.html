@@ -4,11 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>個人化健身暨健康追蹤</title>
+    <script src="https://accounts.google.com/gsi/client" async></script>
 </head>
 <body class="bg-black text-white">
-    <div class="min-h-screen flex items-center justify-center">
-        <h1 class="text-3xl font-bold text-yellow-400">FitnessApp v2 — pipeline OK</h1>
+    <div id="login-screen" class="fixed inset-0 z-[60] bg-black flex flex-col items-center justify-center gap-6">
+        <h1 class="text-2xl font-bold text-yellow-400">個人化健身暨健康追蹤</h1>
+        <p class="text-gray-400 text-sm">請使用 Google 帳號登入</p>
+        <div id="signin-button"></div>
     </div>
+    <pre id="smoke-result" class="p-4 text-xs text-green-400 whitespace-pre-wrap"></pre>
     <script type="module" src="/src/main.js"></script>
 </body>
 </html>
