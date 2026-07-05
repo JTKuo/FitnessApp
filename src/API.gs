@@ -13,6 +13,64 @@ function doGet(e) {
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
 }
 
+// =======================================================
+// JSON API 入口 (doPost) — 前端唯一入口
+// =======================================================
+
+const API_ROUTES = {
+  getInitialData:                   function (email, p) { return getInitialData(email, p.userEmail || null); },
+  getLatestPerformance:             function (email, p) { return getLatestPerformance(email, p.exerciseName, p.userEmail || null); },
+  getUniqueExerciseNames:           function (email, p) { return getUniqueExerciseNames(email, p.userEmail || null); },
+  getAnalysisData:                  function (email, p) { return getAnalysisData(email, p.userEmail || null); },
+  saveBodyPhotos:                   function (email, p) { return saveBodyPhotosToServer(email, p.data); },
+  saveProfileData:                  function (email, p) { return saveProfileDataToServer(email, p.cardId, p.data); },
+  saveWorkoutData:                  function (email, p) { return saveWorkoutDataToServer(email, p.workoutData); },
+  saveWorkoutTemplate:              function (email, p) { return saveWorkoutTemplateToServer(email, p.templateName, p.exercises); },
+  getWorkoutTemplates:              function (email, p) { return getWorkoutTemplates(email, p.userEmail || null); },
+  deleteWorkoutTemplate:            function (email, p) { return deleteWorkoutTemplateToServer(email, p.templateName); },
+  processWorkoutForPRs:             function (email, p) { return processWorkoutForPRs(email, p.workoutData); },
+  getAllPhotoRecords:               function (email, p) { return getAllPhotoRecords(email, p.userEmail || null); },
+  getAllPRs:                        function (email, p) { return getAllPRs(email, p.userEmail || null); },
+  updateMultipleExerciseCategories: function (email, p) { return updateMultipleExerciseCategoriesToServer(email, p.changes); },
+  saveAdminComment:                 function (email, p) { return saveAdminCommentToServer(email, p.userEmail, p.dateString, p.motion, p.comment); }
+  // getPhoto 於 Task 7 實作後解開：
+  // , getPhoto:                    function (email, p) { return getPhotoAsDataUrl(email, p.fileId, p.userEmail || null); }
+};
+
+/**
+ * 統一 JSON API 入口。回應格式：
+ * 成功 { ok: true, data: ... }；失敗 { ok: false, error: { message } }。
+ */
+function doPost(e) {
+  let out;
+  try {
+    if (!e || !e.postData || !e.postData.contents) {
+      throw new Error('無效的請求格式。');
+    }
+    const req = JSON.parse(e.postData.contents);
+    const email = verifyToken(req.token);
+    const handler = API_ROUTES[req.action];
+    if (!handler) {
+      throw new Error('未知的 API action：' + req.action);
+    }
+    const data = handler(email, req.payload || {});
+    // 舊函式以回傳值表達錯誤的兩種慣例，一律轉為統一錯誤
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      if (data.error) {
+        throw new Error(typeof data.error === 'string' ? data.error : (data.error.message || '後端處理失敗'));
+      }
+      if (data.status === 'error') {
+        throw new Error(data.message || '後端處理失敗');
+      }
+    }
+    out = { ok: true, data: (data === undefined ? null : data) };
+  } catch (err) {
+    out = { ok: false, error: { message: err.message } };
+  }
+  return ContentService.createTextOutput(JSON.stringify(out))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
 /**
  * 允許前端載入外部 CSS 和 JS 檔案。
  * @param {string} filename - 要載入的檔案名稱。
@@ -33,10 +91,10 @@ function include(filename) {
  * @param {string|null} userEmail - (可選) 管理者指定要載入的使用者 Email。如果為 null 或未提供，則載入當前登入者。
  * @returns {object} 包含初始化數據或錯誤訊息的物件。
  */
-function getInitialData(userEmail = null) { 
+function getInitialData(authedEmail, userEmail = null) {
   try {
     // --- 任務 1: 獲取使用者基本資料 ---
-    const activeUserEmail = Session.getActiveUser().getEmail(); // 獲取實際登入者的 Email
+    const activeUserEmail = authedEmail; // 獲取實際登入者的 Email
     if (!activeUserEmail) {
       // 如果無法獲取登入者 Email，則無法繼續
       return { error: "無法獲取登入者資訊，請確認您已登入 Google 帳戶。" };
@@ -173,13 +231,13 @@ function getInitialData(userEmail = null) {
  * @param {object} data - 包含所有個人資料的物件。
  * @returns {object} 包含成功訊息的物件。
  */
-function saveProfileDataToServer(cardId, data) {
+function saveProfileDataToServer(authedEmail, cardId, data) {
   try {
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
       throw new Error('無效的個人資料格式。');
     }
 
-    const userSheet = _getUserSheet(Session.getActiveUser().getEmail(), true);
+    const userSheet = _getUserSheet(authedEmail, true);
     if (!userSheet) throw new Error('找不到您的資料檔案。');
     
     const profileSheet = _getOrCreateSheet(userSheet, 'Profile');
@@ -221,11 +279,11 @@ function saveProfileDataToServer(cardId, data) {
  * @param {object} data - 包含日期、base64照片數據以及可選的 weight/bodyfat 的物件。
  * @returns {object} - 包含成功或失敗訊息的物件。
  */
-function saveBodyPhotosToServer(data) {
+function saveBodyPhotosToServer(authedEmail, data) {
     try {
         // --- 在這裡加入清除快取的程式碼 ---
         const cache = CacheService.getUserCache();
-        const userEmail = Session.getActiveUser().getEmail(); // <-- 保留第一次宣告
+        const userEmail = authedEmail; // <-- 保留第一次宣告
         // 只有在體重或體脂被更新時才需要清除快取
         if (data.weight || data.bodyfat) {
           cache.remove(`analysis_data_${userEmail}`);
@@ -328,10 +386,10 @@ function saveBodyPhotosToServer(data) {
  * @param {Array} workoutData - 包含當日所有訓練組數的物件陣列。
  * @returns {object} 包含成功訊息的物件。
  */
-function saveWorkoutDataToServer(workoutData) {
+function saveWorkoutDataToServer(authedEmail, workoutData) {
   try {
     const cache = CacheService.getUserCache();
-    const userEmail = Session.getActiveUser().getEmail();
+    const userEmail = authedEmail;
     cache.remove(`analysis_data_${userEmail}`);
     Logger.log(`為使用者 ${userEmail} 清除了分析數據快取(因為儲存了新訓練)。`);
 
@@ -339,7 +397,7 @@ function saveWorkoutDataToServer(workoutData) {
       throw new Error('無效的訓練資料格式或內容為空。');
     }
 
-    const userSheet = _getUserSheet(Session.getActiveUser().getEmail(), true);
+    const userSheet = _getUserSheet(authedEmail, true);
     if (!userSheet) throw new Error('找不到您的資料檔案。');
     
     const date = new Date(workoutData[0].date);
@@ -362,8 +420,8 @@ function saveWorkoutDataToServer(workoutData) {
  * @param {string|null} userEmail - (可選) 管理者指定的使用者 Email。
  * @returns {object} - 以範本名稱為 key，動作陣列為 value 的物件。
  */
-function getWorkoutTemplates(userEmail = null) {
-  const activeUserEmail = Session.getActiveUser().getEmail();
+function getWorkoutTemplates(authedEmail, userEmail = null) {
+  const activeUserEmail = authedEmail;
   const isAdmin = (activeUserEmail === CONFIG.ADMIN_EMAIL);
   let targetEmail = activeUserEmail;
   if (isAdmin && userEmail) {
@@ -407,15 +465,15 @@ function getWorkoutTemplates(userEmail = null) {
  * @param {Array<string>} exercises - 動作名稱的陣列。
  * @returns {object} - 包含成功訊息的物件。
  */
-function saveWorkoutTemplateToServer(templateName, exercises) {
+function saveWorkoutTemplateToServer(authedEmail, templateName, exercises) {
   if (!templateName || typeof templateName !== 'string' || templateName.trim() === '') {
     throw new Error('範本名稱不可為空。');
   }
   if (!exercises || !Array.isArray(exercises) || exercises.length === 0) {
     throw new Error('範本必須包含至少一個訓練動作。');
   }
-  
-  const userSheet = _getUserSheet(Session.getActiveUser().getEmail(), true);
+
+  const userSheet = _getUserSheet(authedEmail, true);
   if (!userSheet) throw new Error('找不到您的資料檔案。');
 
   const templateSheet = _getOrCreateSheet(userSheet, 'Templates');
@@ -461,13 +519,13 @@ function saveWorkoutTemplateToServer(templateName, exercises) {
  * @param {string} templateName - 要刪除的範本名稱。
  * @returns {object} - 包含成功或失敗訊息的物件。
  */
-function deleteWorkoutTemplateToServer(templateName) {
+function deleteWorkoutTemplateToServer(authedEmail, templateName) {
   try {
     if (!templateName || typeof templateName !== 'string' || templateName.trim() === '') {
       throw new Error('範本名稱不可為空。');
     }
 
-    const userSheet = _getUserSheet(Session.getActiveUser().getEmail(), false);
+    const userSheet = _getUserSheet(authedEmail, false);
     if (!userSheet) {
       throw new Error('找不到您的資料檔案。');
     }
@@ -510,10 +568,10 @@ function deleteWorkoutTemplateToServer(templateName) {
  * (V3.4 - 加入備註) 獲取所有歷史數據用於圖表分析。
  * @param {string|null} userEmail - (可選) 管理者指定的使用者 Email
  */
-function getAnalysisData(userEmail = null) {
+function getAnalysisData(authedEmail, userEmail = null) {
   // --- 快取檢查邏輯 (不變) ---
   const cache = CacheService.getUserCache();
-  const activeUserEmail = Session.getActiveUser().getEmail();
+  const activeUserEmail = authedEmail;
   const isAdmin = (activeUserEmail === CONFIG.ADMIN_EMAIL);
 
   let targetEmail = activeUserEmail;
@@ -685,10 +743,10 @@ function getAnalysisData(userEmail = null) {
  * @param {string} exerciseName - 要查詢的動作名稱。
  * @returns {object|null} - 包含 {weight, reps} 的物件，或是在找不到時回傳 null。
  */
-function getLatestPerformance(exerciseName, userEmail = null) {
+function getLatestPerformance(authedEmail, exerciseName, userEmail = null) {
   try {
     const KG_TO_LB = 2.20462262;
-    const activeUserEmail = Session.getActiveUser().getEmail();
+    const activeUserEmail = authedEmail;
     const isAdmin = (activeUserEmail === CONFIG.ADMIN_EMAIL);
 
     let targetEmail = activeUserEmail;
@@ -736,9 +794,9 @@ function getLatestPerformance(exerciseName, userEmail = null) {
  * @param {string|null} userEmail - (可選) 管理者指定的使用者 Email。
  * @returns {Array<string>} - ...
  */
-function getUniqueExerciseNames(userEmail = null) {
+function getUniqueExerciseNames(authedEmail, userEmail = null) {
   try {
-    const activeUserEmail = Session.getActiveUser().getEmail();
+    const activeUserEmail = authedEmail;
     const isAdmin = (activeUserEmail === CONFIG.ADMIN_EMAIL);
     let targetEmail = activeUserEmail;
     if (isAdmin && userEmail) {
@@ -775,8 +833,8 @@ function getUniqueExerciseNames(userEmail = null) {
  * @param {string} comment - 管理員的評論文字。
  * @returns {object} - 一個包含成功或失敗訊息的物件。
  */
-function saveAdminCommentToServer(userEmail, dateString, motion, comment) {
-    if (Session.getActiveUser().getEmail() !== CONFIG.ADMIN_EMAIL) {
+function saveAdminCommentToServer(authedEmail, userEmail, dateString, motion, comment) {
+    if (authedEmail !== CONFIG.ADMIN_EMAIL) {
         return { status: 'error', message: '權限不足。' };
     }
 
@@ -863,13 +921,13 @@ function saveAdminCommentToServer(userEmail, dateString, motion, comment) {
  * @param {Array} workoutData - 當日所有訓練組數的物件陣列。
  * @returns {object} - 回傳一個物件，包含新達成的 PR 列表。
  */
-function processWorkoutForPRs(workoutData) {
+function processWorkoutForPRs(authedEmail, workoutData) {
   try {
     if (!workoutData || !Array.isArray(workoutData) || workoutData.length === 0) {
         return { status: 'error', message: '無效的訓練資料，無法處理 PR。' };
     }
-    
-    const userSheet = _getUserSheet(Session.getActiveUser().getEmail(), true);
+
+    const userSheet = _getUserSheet(authedEmail, true);
     const prsSheet = _getOrCreateSheet(userSheet, 'PRs');
     const bestsSheet = _getOrCreateSheet(userSheet, 'Bests');
 
@@ -1014,9 +1072,9 @@ function processWorkoutForPRs(workoutData) {
  * @param {string|null} userEmail - (可選) 管理者指定的使用者 Email。
  * @returns {Array<object>|object} - ...
  */
-function getAllPhotoRecords(userEmail = null) {
+function getAllPhotoRecords(authedEmail, userEmail = null) {
   try {
-    const activeUserEmail = Session.getActiveUser().getEmail();
+    const activeUserEmail = authedEmail;
     const isAdmin = (activeUserEmail === CONFIG.ADMIN_EMAIL);
     let targetEmail = activeUserEmail;
     if (isAdmin && userEmail) {
@@ -1070,10 +1128,10 @@ function getAllPhotoRecords(userEmail = null) {
  * @param {string|null} userEmail - (可選) 管理者指定的使用者 Email。
  * @returns {object} - 包含 { bests: [...], repPRs: [...] } 的物件。
  */
-function getAllPRs(userEmail = null) {
+function getAllPRs(authedEmail, userEmail = null) {
   let targetEmail = null;
   try {
-    const activeUserEmail = Session.getActiveUser().getEmail();
+    const activeUserEmail = authedEmail;
     targetEmail = activeUserEmail;
     const isAdmin = (activeUserEmail === CONFIG.ADMIN_EMAIL);
     if (isAdmin && userEmail) {
@@ -1142,13 +1200,13 @@ function getAllPRs(userEmail = null) {
  * @param {Array<object>} changes - 一個包含 {motion, category} 物件的陣列。
  * @returns {object} - 包含成功或失敗訊息的物件。
  */
-function updateMultipleExerciseCategoriesToServer(changes) {
+function updateMultipleExerciseCategoriesToServer(authedEmail, changes) {
   try {
     if (!changes || !Array.isArray(changes) || changes.length === 0) {
       return { status: 'warning', message: '沒有需要更新的分類。' };
     }
 
-    const userSheet = _getUserSheet(Session.getActiveUser().getEmail(), true);
+    const userSheet = _getUserSheet(authedEmail, true);
     const exerciseSheet = _getOrCreateSheet(userSheet, 'ExerciseMaster');
     
     const range = exerciseSheet.getDataRange();
