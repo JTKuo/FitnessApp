@@ -47,8 +47,11 @@ function verifyToken(idToken) {
   }
 
   // 快取到 token 過期前 60 秒（上限 6 小時，CacheService 限制 21600 秒）
-  const ttl = Math.max(60, Math.min(parseInt(info.exp, 10) - Math.floor(Date.now() / 1000) - 60, 21600));
-  cache.put(cacheKey, email, ttl);
+  const expSeconds = parseInt(info.exp, 10);
+  if (!isNaN(expSeconds)) {
+    const ttl = Math.max(60, Math.min(expSeconds - Math.floor(Date.now() / 1000) - 60, 21600));
+    cache.put(cacheKey, email, ttl);
+  }
   return email;
 }
 
