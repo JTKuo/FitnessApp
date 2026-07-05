@@ -1,5 +1,10 @@
-# clasp 登入憑證（絕不可進版控）
+# clasp 登入憑證與本機設定（絕不可進版控）
 .clasprc.json
+.clasp.json
+
+# 規劃文件與開發暫存（僅本機）
+docs/superpowers/
+.superpowers/
 
 # Node
 node_modules/

@@ -72,10 +72,3 @@ git commit -m "init: GAS MVP baseline"
 ```
 
 先 commit MVP 原始碼當 baseline，之後所有改動都有得比對。
-
-## 二次開發建議（Roadmap）
-
-- [ ] 將 `index.html` 用 GAS `include()` 拆成 partial（styles.html、js_main.html 等）
-- [ ] 前後端錯誤處理統一格式
-- [ ] WorkoutLog 資料量大時的讀取效能（改用 Sheets API v4 批次讀取）
-- [ ] PR 計算邏輯抽出可測試模組
