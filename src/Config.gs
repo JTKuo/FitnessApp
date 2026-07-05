@@ -13,7 +13,9 @@ function _getScriptProperties() {
     return {
       ADMIN_EMAIL: properties.getProperty('ADMIN_EMAIL'),
       DATA_FOLDER_ID: properties.getProperty('DATA_FOLDER_ID'),
-      PHOTOS_FOLDER_ID: properties.getProperty('PHOTOS_FOLDER_ID')
+      PHOTOS_FOLDER_ID: properties.getProperty('PHOTOS_FOLDER_ID'),
+      OAUTH_CLIENT_ID: properties.getProperty('OAUTH_CLIENT_ID'),
+      USER_WHITELIST: properties.getProperty('USER_WHITELIST')
     };
   } catch (e) {
     Logger.log("嚴重錯誤：無法讀取指令碼屬性。請檢查專案設定。 " + e.toString());
@@ -21,7 +23,9 @@ function _getScriptProperties() {
     return {
       ADMIN_EMAIL: null,
       DATA_FOLDER_ID: null,
-      PHOTOS_FOLDER_ID: null
+      PHOTOS_FOLDER_ID: null,
+      OAUTH_CLIENT_ID: null,
+      USER_WHITELIST: null
     };
   }
 }
