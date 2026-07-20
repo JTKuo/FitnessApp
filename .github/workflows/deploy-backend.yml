@@ -1,0 +1,49 @@
+name: Deploy Backend (GAS)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:
+
+# 同一時間只跑一個後端部署，避免併發 push/deploy 打架
+concurrency:
+  group: gas-backend
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install clasp
+        run: npm install -g @google/clasp@2.4.2
+
+      - name: Write clasp credentials
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+
+      - name: Write .clasp.json
+        env:
+          CLASP_SCRIPT_ID: ${{ secrets.CLASP_SCRIPT_ID }}
+        run: |
+          printf '{\n  "scriptId": "%s",\n  "rootDir": "./src"\n}\n' "$CLASP_SCRIPT_ID" > .clasp.json
+
+      - name: Push code to Apps Script
+        run: clasp push --force
+
+      - name: Deploy to production /exec
+        env:
+          CLASP_DEPLOYMENT_ID: ${{ secrets.CLASP_DEPLOYMENT_ID }}
+        run: |
+          clasp deploy \
+            --deploymentId "$CLASP_DEPLOYMENT_ID" \
+            --description "CI ${GITHUB_SHA::7} @ $(date -u +%Y-%m-%dT%H:%MZ)"
