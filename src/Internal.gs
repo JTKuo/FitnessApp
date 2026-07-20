@@ -154,12 +154,12 @@ function _getExerciseCategoryMap(spreadsheet) { //
   const categoryMap = new Map();
   const sheet = spreadsheet.getSheetByName('ExerciseMaster'); // 
   
-  if (!sheet || sheet.getLastRow() < 2) { // [cite: 43]
+  if (!sheet || sheet.getLastRow() < 2) {
     return categoryMap;
   }
   
-  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 2).getValues(); // [cite: 44]
-  data.forEach(row => { // [cite: 44]
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 2).getValues();
+  data.forEach(row => {
     const exerciseName = row[0];
     const category = row[1];
     if (exerciseName && category) {
@@ -172,7 +172,7 @@ function _getExerciseCategoryMap(spreadsheet) { //
   const serializableObject = Object.fromEntries(categoryMap);
   cache.put(cacheKey, JSON.stringify(serializableObject), 3600); 
 
-  return categoryMap; // [cite: 45]
+  return categoryMap;
 }
 
 function _getLatestProfileData(spreadsheet) {
