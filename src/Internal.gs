@@ -77,7 +77,7 @@ function _getOrCreateSheet(spreadsheet, sheetName) {
       sheet.setFrozenRows(1);
     } else if (sheetName === CONSTANTS.SHEETS.TEMPLATES) {
       const headers = ['TemplateName', 'ExerciseName', 'Order'];
-      sheet.appendRow(headers); [cite_start]
+      sheet.appendRow(headers);
       sheet.getRange("A1:C1").setFontWeight("bold");
       sheet.setFrozenRows(1);
     } else if (sheetName === CONSTANTS.SHEETS.PROFILE) {
@@ -104,7 +104,7 @@ function _getOrCreateSheet(spreadsheet, sheetName) {
         CONSTANTS.HEADERS.VFL,
         'training_direction'
       ];
-      sheet.appendRow(canonicalHeaders); [cite_start]
+      sheet.appendRow(canonicalHeaders);
       sheet.getRange(1, 1, 1, canonicalHeaders.length).setFontWeight("bold");
       sheet.setFrozenRows(1);
     } else if (sheetName === 'BodyPhotos') {
