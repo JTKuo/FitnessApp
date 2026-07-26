@@ -40,7 +40,8 @@ const API_ROUTES = {
   getPhoto:                         function (email, p) { return getPhotoAsDataUrl(email, p.fileId, p.userEmail || null); },
   saveInBodyRecord:                 function (email, p) { return saveInBodyRecord(email, p.record); },
   getInBodyRecords:                 function (email, p) { return getInBodyRecords(email, p.userEmail || null); },
-  deleteInBodyRecord:               function (email, p) { return deleteInBodyRecord(email, p.recordId); }
+  deleteInBodyRecord:               function (email, p) { return deleteInBodyRecord(email, p.recordId); },
+  login:                            function (email, p) { return { email: email }; }
 };
 
 /**
@@ -54,7 +55,7 @@ function doPost(e) {
       throw new Error('無效的請求格式。');
     }
     const req = JSON.parse(e.postData.contents);
-    const email = verifyToken(req.token);
+    const email = verifyAny(req.token);
     const handler = API_ROUTES[req.action];
     if (!handler) {
       throw new Error('未知的 API action：' + req.action);
@@ -69,7 +70,8 @@ function doPost(e) {
         throw new Error(data.message || '後端處理失敗');
       }
     }
-    out = { ok: true, data: (data === undefined ? null : data) };
+    // 每次成功回應都附帶重新計時的 token —— 滑動續期
+    out = { ok: true, data: (data === undefined ? null : data), token: issueSessionToken(email) };
   } catch (err) {
     out = { ok: false, error: { message: err.message } };
   }
