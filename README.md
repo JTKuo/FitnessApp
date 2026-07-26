@@ -65,8 +65,17 @@ v2 開發期間不可操作正式資料。在新 GAS 專案的 **專案設定 �
 | `PHOTOS_FOLDER_ID` | 測試用 Drive 資料夾 ID（存放體態照片） |
 | `OAUTH_CLIENT_ID` | Google OAuth 用戶端 ID（前端 GIS 登入與後端 aud 驗證共用） |
 | `USER_WHITELIST` | 允許登入的 email 白名單（逗號分隔；ADMIN_EMAIL 自動併入） |
+| `SESSION_SECRET` | Session token 簽章密鑰（**首次使用時自動生成，無需手動設定**） |
 
 建議複製一份正式使用者的 Sheet 到測試資料夾當假資料。
+
+### 緊急撤銷所有登入
+
+登入狀態以無狀態簽章維持（有效期為閒置 3 小時）。若需立即讓所有裝置登出：
+
+1. GAS 編輯器 → 專案設定 → 指令碼屬性
+2. 刪除 `SESSION_SECRET`
+3. 下次任何請求會自動生成新密鑰，舊憑證全數失效
 
 ## 開發流程
 
