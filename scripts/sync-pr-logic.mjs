@@ -7,6 +7,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TARGETS = [
   ['web/src/pr-logic.js', 'src/PRLogic.gs'],
   ['web/src/body-history.js', 'src/BodyHistory.gs'],
+  ['web/src/session-token.js', 'src/SessionToken.gs'],
 ];
 for (const [srcPath, outPath] of TARGETS) {
   const src = readFileSync(resolve(root, srcPath), 'utf8');
