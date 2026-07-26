@@ -189,9 +189,11 @@ function TEST_sessionToken() {
   const token = issueSessionToken(email);
   Logger.log(verifySessionToken(token) === email ? '1 PASS：簽發驗證 round trip' : '1 FAIL');
 
-  // 2) 竄改 payload（改成他人 email，沿用原簽章）
+  // 2) 竄改 payload（延長到期時間，沿用原簽章）
+  //    email 刻意維持白名單內帳號、到期時間刻意有效 —— 這樣唯一能擋下這張 token 的
+  //    就只有簽章檢查本身。若用非白名單 email，白名單檢查會先擋下，測試就測不到簽章。
   const forgedPayload = Utilities.base64EncodeWebSafe(
-    JSON.stringify({ e: 'attacker@evil.com', x: Math.floor(Date.now() / 1000) + 3600 })
+    JSON.stringify({ e: email, x: Math.floor(Date.now() / 1000) + 86400 })
   ).replace(/=+$/, '');
   try {
     verifySessionToken(forgedPayload + '.' + token.split('.')[1]);
