@@ -1,8 +1,29 @@
 // 後端 API 呼叫層：取代舊 app.api（google.script.run）。
 // 方法名稱與簽名與舊版完全一致，回傳值形狀也一致（router 只包一層 ok/data）。
-import { getValidToken, requestReauth } from './auth.js';
+import { getValidToken, requestReauth, storeSessionToken } from './auth.js';
 
 const API_URL = import.meta.env.VITE_GAS_API_URL;
+
+async function post(body) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // 避開 CORS preflight
+    body: JSON.stringify(body),
+    redirect: 'follow',
+  });
+  if (!res.ok) throw new Error(`伺服器錯誤 (HTTP ${res.status})`);
+  const json = await res.json();
+  if (json.token) storeSessionToken(json.token); // 滑動續期
+  if (!json.ok) {
+    throw new Error((json.error && json.error.message) || '未知錯誤');
+  }
+  return json.data;
+}
+
+/** 以 Google ID token 換取 session token（session token 由 post 自動存入）。 */
+export async function loginWithGoogleToken(googleIdToken) {
+  return post({ token: googleIdToken, action: 'login', payload: {} });
+}
 
 async function apiCall(action, payload = {}) {
   const token = getValidToken();
@@ -10,20 +31,12 @@ async function apiCall(action, payload = {}) {
     requestReauth();
     throw new Error('登入已過期，請重新登入。');
   }
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // 避開 CORS preflight
-    body: JSON.stringify({ token, action, payload }),
-    redirect: 'follow',
-  });
-  if (!res.ok) throw new Error(`伺服器錯誤 (HTTP ${res.status})`);
-  const json = await res.json();
-  if (!json.ok) {
-    const msg = (json.error && json.error.message) || '未知錯誤';
-    if (/憑證|過期|授權/.test(msg)) requestReauth();
-    throw new Error(msg);
+  try {
+    return await post({ token, action, payload });
+  } catch (err) {
+    if (/憑證|過期|授權/.test(err.message)) requestReauth();
+    throw err;
   }
-  return json.data;
 }
 
 export const backendApi = {
