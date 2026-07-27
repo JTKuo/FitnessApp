@@ -1540,6 +1540,7 @@ function saveExerciseClassifications(authedEmail, items) {
   }
 
   const newRows = [];
+  const newMotionSet = new Set(); // 同一 payload 中的新動作去重
   items.forEach(function (item) {
     const motion = String(item.motion || '').trim();
     if (!motion) return;
@@ -1550,18 +1551,28 @@ function saveExerciseClassifications(authedEmail, items) {
       values[idx][1] = category;
       values[idx][2] = tags;
     } else {
-      newRows.push([motion, category, tags]);
+      // 同一 payload 中的新動作出現重複時，只附加第一次
+      if (!newMotionSet.has(motion)) {
+        newRows.push([motion, category, tags]);
+        newMotionSet.add(motion);
+        rowIndexByMotion.set(motion, values.length + newRows.length - 1); // 登記到 rowIndexByMotion，防止後續重複
+      }
     }
   });
 
-  // 既有列可能只有 2 欄，補齊為 3 欄再寫回，避免 setValues 因寬度不符而失敗
-  const width = EXERCISE_MASTER_HEADERS.length;
+  // 寬度取「標準欄數」與「現有最寬列」的較大者——使用者可能在第 4 欄之後手動加了備註，
+  // 一律保留不截斷；既有的 2 欄列則補齊。
+  let width = EXERCISE_MASTER_HEADERS.length;
+  values.forEach(function (row) { if (row.length > width) width = row.length; });
   const normalized = values.map(function (row) {
-    const r = row.slice(0, width);
+    const r = row.slice();
     while (r.length < width) r.push('');
     return r;
   });
-  normalized[0] = EXERCISE_MASTER_HEADERS;
+  // 只覆寫前三欄的標頭，第 4 欄以後的標頭（若有）保留
+  for (let h = 0; h < EXERCISE_MASTER_HEADERS.length; h++) {
+    normalized[0][h] = EXERCISE_MASTER_HEADERS[h];
+  }
   sheet.getRange(1, 1, normalized.length, width).setValues(normalized);
   if (newRows.length > 0) {
     sheet.getRange(sheet.getLastRow() + 1, 1, newRows.length, width).setValues(newRows);
