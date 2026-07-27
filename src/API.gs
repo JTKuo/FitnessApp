@@ -1540,7 +1540,7 @@ function saveExerciseClassifications(authedEmail, items) {
   }
 
   const newRows = [];
-  const newMotionSet = new Set(); // 同一 payload 中的新動作去重
+  const newRowIndexByMotion = new Map(); // motion -> newRows 的索引（同一次呼叫內去重用）
   items.forEach(function (item) {
     const motion = String(item.motion || '').trim();
     if (!motion) return;
@@ -1550,13 +1550,14 @@ function saveExerciseClassifications(authedEmail, items) {
       const idx = rowIndexByMotion.get(motion);
       values[idx][1] = category;
       values[idx][2] = tags;
+    } else if (newRowIndexByMotion.has(motion)) {
+      // 同一次呼叫內重複出現的新動作：就地覆蓋（後者為準），不再追加一列
+      const nIdx = newRowIndexByMotion.get(motion);
+      newRows[nIdx][1] = category;
+      newRows[nIdx][2] = tags;
     } else {
-      // 同一 payload 中的新動作出現重複時，只附加第一次
-      if (!newMotionSet.has(motion)) {
-        newRows.push([motion, category, tags]);
-        newMotionSet.add(motion);
-        rowIndexByMotion.set(motion, values.length + newRows.length - 1); // 登記到 rowIndexByMotion，防止後續重複
-      }
+      newRowIndexByMotion.set(motion, newRows.length);
+      newRows.push([motion, category, tags]);
     }
   });
 
@@ -1575,7 +1576,13 @@ function saveExerciseClassifications(authedEmail, items) {
   }
   sheet.getRange(1, 1, normalized.length, width).setValues(normalized);
   if (newRows.length > 0) {
-    sheet.getRange(sheet.getLastRow() + 1, 1, newRows.length, width).setValues(newRows);
+    // 補齊到與寫回時相同的欄寬，否則 setValues 會因欄數不符而拋錯
+    const paddedNewRows = newRows.map(function (row) {
+      const r = row.slice();
+      while (r.length < width) r.push('');
+      return r;
+    });
+    sheet.getRange(sheet.getLastRow() + 1, 1, paddedNewRows.length, width).setValues(paddedNewRows);
   }
   SpreadsheetApp.flush();
 
