@@ -123,9 +123,9 @@ function _getOrCreateSheet(spreadsheet, sheetName) {
         sheet.getRange("A1:E1").setFontWeight("bold");
         sheet.setFrozenRows(1);
     } else if (sheetName === 'ExerciseMaster') {
-        const headers = ['Motion', 'Category'];
+        const headers = ['Motion', 'Category', 'Tags'];
         sheet.appendRow(headers);
-        sheet.getRange("A1:B1").setFontWeight("bold");
+        sheet.getRange("A1:C1").setFontWeight("bold");
         sheet.setFrozenRows(1);
     }
   }
@@ -173,6 +173,31 @@ function _getExerciseCategoryMap(spreadsheet) { //
   cache.put(cacheKey, JSON.stringify(serializableObject), 3600); 
 
   return categoryMap; // [cite: 45]
+}
+
+/**
+ * 讀取 ExerciseMaster，回傳 動作名稱 -> {category, tags[]} 的 Map。
+ * 與 _getExerciseCategoryMap 並存：後者僅需分類、且已被既有程式與快取依賴。
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} spreadsheet
+ * @returns {Map<string, {category: string, tags: string[]}>}
+ */
+function _getExerciseInfoMap(spreadsheet) {
+  const infoMap = new Map();
+  const sheet = spreadsheet.getSheetByName('ExerciseMaster');
+  if (!sheet || sheet.getLastRow() < 2) return infoMap;
+
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 3).getValues();
+  data.forEach(function (row) {
+    const motion = String(row[0]).trim();
+    if (!motion) return;
+    const category = String(row[1]).trim();
+    const tagsRaw = String(row[2]).trim();
+    const tags = tagsRaw === '' ? [] : tagsRaw.split(',').map(function (t) {
+      return String(t).trim();
+    }).filter(Boolean);
+    infoMap.set(motion, { category: category, tags: tags });
+  });
+  return infoMap;
 }
 
 function _getLatestProfileData(spreadsheet) {

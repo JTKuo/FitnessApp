@@ -41,6 +41,9 @@ const API_ROUTES = {
   saveInBodyRecord:                 function (email, p) { return saveInBodyRecord(email, p.record); },
   getInBodyRecords:                 function (email, p) { return getInBodyRecords(email, p.userEmail || null); },
   deleteInBodyRecord:               function (email, p) { return deleteInBodyRecord(email, p.recordId); },
+  getExerciseCatalog:               function (email, p) { return getExerciseCatalog(email, p.userEmail || null); },
+  saveExerciseClassifications:      function (email, p) { return saveExerciseClassifications(email, p.items); },
+  autoClassifyExercises:            function (email, p) { return autoClassifyExercises(email); },
   login:                            function (email, p) { return { email: email }; }
 };
 
@@ -1454,4 +1457,141 @@ function deleteInBodyRecord(authedEmail, recordId) {
     }
   }
   throw new Error('找不到該筆記錄。');
+}
+
+// =======================================================
+// 動作分類與 Tag (R3a)
+// =======================================================
+
+const EXERCISE_MASTER_HEADERS = ['Motion', 'Category', 'Tags'];
+
+/** 取得（必要時建立並補上標頭）ExerciseMaster 分頁。 */
+function _getExerciseMasterSheet(userSheet) {
+  const sheet = _getOrCreateSheet(userSheet, CONSTANTS.SHEETS.EXERCISE_MASTER);
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(EXERCISE_MASTER_HEADERS);
+  }
+  return sheet;
+}
+
+/** 清除與分類相關的快取（分類變動後必須呼叫）。 */
+function _clearClassificationCaches(email, spreadsheetId) {
+  const cache = CacheService.getUserCache();
+  cache.remove('category_map_' + spreadsheetId);
+  cache.remove('analysis_data_' + email);
+}
+
+/**
+ * (API) 動作目錄：聯集 WorkoutLog 出現過的動作與 ExerciseMaster 既有列。
+ * 確保「練過但從未分類」的動作一定出現在編輯器中。
+ * @returns {Array<{motion: string, category: string, tags: string[]}>}
+ */
+function getExerciseCatalog(authedEmail, requestedEmail) {
+  const target = _resolveTarget(authedEmail, requestedEmail);
+  const userSheet = _getUserSheet(target.targetEmail, false);
+  if (!userSheet) return [];
+
+  const infoMap = _getExerciseInfoMap(userSheet);
+  const motions = new Set();
+  infoMap.forEach(function (_info, motion) { motions.add(motion); });
+
+  // 併入 WorkoutLog 中實際練過的動作
+  const logSheet = userSheet.getSheetByName(CONSTANTS.SHEETS.WORKOUT_LOG);
+  if (logSheet && logSheet.getLastRow() > 1) {
+    const indices = _getHeaderIndices(logSheet);
+    const motionIdx = indices[CONSTANTS.HEADERS.MOTION];
+    const rows = logSheet.getRange(2, 1, logSheet.getLastRow() - 1, logSheet.getLastColumn()).getValues();
+    rows.forEach(function (row) {
+      const motion = String(row[motionIdx]).trim();
+      if (motion && motion !== '本日總結' && motion !== '動作總結') motions.add(motion);
+    });
+  }
+
+  const catalog = [];
+  motions.forEach(function (motion) {
+    const info = infoMap.get(motion);
+    catalog.push({
+      motion: motion,
+      category: info ? info.category : '',
+      tags: info ? info.tags : []
+    });
+  });
+  catalog.sort(function (a, b) { return a.motion.localeCompare(b.motion, 'zh-Hant'); });
+  return catalog;
+}
+
+/**
+ * (API) 批次寫入分類與 tag。僅限本人。
+ * @param {Array<{motion: string, category: string, tags: string[]}>} items
+ */
+function saveExerciseClassifications(authedEmail, items) {
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return { status: 'warning', message: '沒有需要更新的分類。' };
+  }
+  const userSheet = _getUserSheet(authedEmail, true);
+  if (!userSheet) throw new Error('找不到您的資料檔案。');
+  const sheet = _getExerciseMasterSheet(userSheet);
+
+  const values = sheet.getDataRange().getValues();
+  const rowIndexByMotion = new Map();
+  for (let i = 1; i < values.length; i++) {
+    const motion = String(values[i][0]).trim();
+    if (motion) rowIndexByMotion.set(motion, i);
+  }
+
+  const newRows = [];
+  items.forEach(function (item) {
+    const motion = String(item.motion || '').trim();
+    if (!motion) return;
+    const category = String(item.category || '').trim();
+    const tags = Array.isArray(item.tags) ? item.tags.join(',') : '';
+    if (rowIndexByMotion.has(motion)) {
+      const idx = rowIndexByMotion.get(motion);
+      values[idx][1] = category;
+      values[idx][2] = tags;
+    } else {
+      newRows.push([motion, category, tags]);
+    }
+  });
+
+  // 既有列可能只有 2 欄，補齊為 3 欄再寫回，避免 setValues 因寬度不符而失敗
+  const width = EXERCISE_MASTER_HEADERS.length;
+  const normalized = values.map(function (row) {
+    const r = row.slice(0, width);
+    while (r.length < width) r.push('');
+    return r;
+  });
+  normalized[0] = EXERCISE_MASTER_HEADERS;
+  sheet.getRange(1, 1, normalized.length, width).setValues(normalized);
+  if (newRows.length > 0) {
+    sheet.getRange(sheet.getLastRow() + 1, 1, newRows.length, width).setValues(newRows);
+  }
+  SpreadsheetApp.flush();
+
+  _clearClassificationCaches(authedEmail, userSheet.getId());
+  return { status: 'success', message: '分類已儲存！' };
+}
+
+/**
+ * (API) 對目前未分類的動作套用關鍵字推薦。絕不覆蓋已指定的分類。僅限本人。
+ * @returns {{processed: number, stillUnknown: number}}
+ */
+function autoClassifyExercises(authedEmail) {
+  const catalog = getExerciseCatalog(authedEmail, null);
+  const pending = catalog.filter(function (item) { return item.category === ''; });
+  if (pending.length === 0) return { processed: 0, stillUnknown: 0 };
+
+  const items = [];
+  let stillUnknown = 0;
+  pending.forEach(function (item) {
+    const suggestion = suggestClassification(item.motion);
+    if (suggestion.category === '') {
+      stillUnknown++;
+      return;
+    }
+    items.push({ motion: item.motion, category: suggestion.category, tags: suggestion.tags });
+  });
+
+  if (items.length > 0) saveExerciseClassifications(authedEmail, items);
+  return { processed: items.length, stillUnknown: stillUnknown };
 }
