@@ -410,6 +410,17 @@ function saveWorkoutDataToServer(authedEmail, workoutData) {
 
     _writeNewLog(logSheet, date, workoutData, savedAdminComments);
 
+    // 讓新動作自動進入分類目錄（失敗僅記錄，絕不影響訓練記錄的儲存）
+    try {
+      _ensureExercisesRegistered(
+        authedEmail,
+        userSheet,
+        workoutData.map(function (s) { return s.motion; })
+      );
+    } catch (e) {
+      Logger.log('自動登錄動作分類失敗（不影響訓練儲存）：' + e.message);
+    }
+
     return { status: 'success', message: '訓練日誌已成功儲存！' };
   } catch(e) {
     Logger.log("saveWorkoutDataToServer 錯誤: " + e.toString());
@@ -691,7 +702,8 @@ function getAnalysisData(authedEmail, userEmail = null) {
 
       workouts.forEach(set => {
         dailyTotalVolume += set.volume;
-        const category = categoryMap.get(set.motion) || '其他';
+        // 空白 = 從未分類（明確待辦），與使用者主動指定的「其他」語意分開
+        const category = categoryMap.get(set.motion) || '未分類';
         dailyCategoryVolume[category] = (dailyCategoryVolume[category] || 0) + set.volume;
 
         if (!dailyMotionStats[set.motion]) {
@@ -1188,8 +1200,8 @@ function getAllPRs(authedEmail, userEmail = null) {
           heaviestDateISO: row[3] instanceof Date ? row[3].toISOString() : null,
           e1rmDate: row[4] instanceof Date ? row[4].toLocaleDateString() : 'N/A',
           e1rmDateISO: row[4] instanceof Date ? row[4].toISOString() : null,
-          // ⭐ [新增] 步驟 2: 查詢並加入分類，如果找不到則預設為 '其他'
-          category: categoryMap.get(motion) || '其他'
+          // ⭐ [新增] 步驟 2: 查詢並加入分類，如果找不到則預設為 '未分類'
+          category: categoryMap.get(motion) || '未分類'
         });
       });
     }
@@ -1206,8 +1218,8 @@ function getAllPRs(authedEmail, userEmail = null) {
           weight: row[2],
           date: row[3] instanceof Date ? row[3].toLocaleDateString() : 'N/A',
           dateISO: row[3] instanceof Date ? row[3].toISOString() : null,
-          // ⭐ [新增] 步驟 2: 查詢並加入分類，如果找不到則預設為 '其他'
-          category: categoryMap.get(motion) || '其他'
+          // ⭐ [新增] 步驟 2: 查詢並加入分類，如果找不到則預設為 '未分類'
+          category: categoryMap.get(motion) || '未分類'
         });
       });
     }
@@ -1612,4 +1624,32 @@ function autoClassifyExercises(authedEmail) {
 
   if (items.length > 0) saveExerciseClassifications(authedEmail, items);
   return { processed: items.length, stillUnknown: stillUnknown };
+}
+
+/**
+ * 確保這些動作都在 ExerciseMaster 有一列；缺的以關鍵字推薦補上。
+ * 供儲存訓練時呼叫，讓待辦不再累積。呼叫端必須以 try/catch 包覆——
+ * 分類失敗絕不能導致訓練記錄無法儲存。
+ * @param {string} email
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} userSheet
+ * @param {Array<string>} motionNames
+ */
+function _ensureExercisesRegistered(email, userSheet, motionNames) {
+  const infoMap = _getExerciseInfoMap(userSheet);
+  const missing = [];
+  const seen = {};
+  motionNames.forEach(function (raw) {
+    const motion = String(raw || '').trim();
+    if (!motion || seen[motion]) return;
+    seen[motion] = true;
+    if (infoMap.has(motion)) return;
+    const suggestion = suggestClassification(motion);
+    missing.push([motion, suggestion.category, suggestion.tags.join(',')]);
+  });
+  if (missing.length === 0) return;
+
+  const sheet = _getExerciseMasterSheet(userSheet);
+  sheet.getRange(sheet.getLastRow() + 1, 1, missing.length, EXERCISE_MASTER_HEADERS.length)
+       .setValues(missing);
+  _clearClassificationCaches(email, userSheet.getId());
 }
