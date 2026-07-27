@@ -12,7 +12,6 @@ export const initialState = {
                 ui: {
                     currentView: 'dashboard',
                     isLoading: true,
-                    isPREditMode: false,
                     shouldShowReminder: false
                 },
                 
@@ -48,8 +47,10 @@ export const initialState = {
                     toastTimer: null
                 },
                 
-                // PR 編輯相關
-                pr: {
-                    categoryChanges: new Map()
-                }
+                // 動作分類編輯器 (R3a)
+                classify: {
+                    catalog: [],
+                    changes: new Map(), // motion -> {category, tags[]}
+                    filter: 'all',      // 'all' | 'unclassified'
+                },
 };

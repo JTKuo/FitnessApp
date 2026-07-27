@@ -1,6 +1,7 @@
 import { app } from './app.js';                 // call-time 引用，無循環問題
 import { APP_CONSTANTS } from './constants.js';
 import { renderDrivePhoto } from './photos.js';
+import { CATEGORY_ORDER, ALL_TAGS } from './exercise-taxonomy.js';
 
 export const methods = {
                 handleError(error, contextMessage = "發生錯誤") {
@@ -1721,138 +1722,131 @@ export const methods = {
                         repPRsContainer.appendChild(motionContainer);
                     });
 
-                    // 渲染完成後，立即初始化拖曳功能
-                    this.initPRsDragAndDrop();
                 },
 
-                initPRsDragAndDrop() {
-                    const containers = document.querySelectorAll('.pr-sortable-container');
-                    if (containers.length === 0) return;
-
-                    const placeholderHtml = {
-                        bests: '<p class="text-gray-500 text-sm pl-4 pr-placeholder">尚無 Bests 紀錄。</p>',
-                        repPRs: '<p class="text-gray-500 text-sm pl-4 pr-placeholder">尚無 Rep PRs 紀錄。</p>'
-                    };
-
-                    containers.forEach(container => {
-                        new Sortable(container, {
-                            group: 'sharedPRs',
-                            animation: 150,
-                            ghostClass: 'sortable-ghost',
-                            chosenClass: 'sortable-chosen',
-                            disabled: !app.state.ui.isPREditMode,
-                            handle: '.js-pr-drag-handle',
-                            delay: 50,
-                            delayOnTouchOnly: true,
-
-                            onAdd: function(evt) {
-                                const motion = evt.item.dataset.motion;
-                                const newCategory = evt.to.dataset.category;
-                                
-                                const placeholder = evt.to.querySelector('.pr-placeholder');
-                                if (placeholder) placeholder.remove();
-
-                                app.state.pr.categoryChanges.set(motion, newCategory);
-                                app.methods.syncPRCardCategory(motion, newCategory, evt.item);
-                            },
-
-                            onRemove: function(evt) {
-                                if (evt.from.querySelectorAll('.pr-card').length === 0) {
-                                    const containerType = evt.from.closest('#bests-container') ? 'bests' : 'repPRs';
-                                    evt.from.innerHTML = placeholderHtml[containerType];
-                                }
-                            }
-                        });
-                    });
-                },
-
-                syncPRCardCategory(motion, newCategory, draggedItem) {
-                    const isBestsCard = draggedItem.closest('#bests-container');
-                    
-                    const selector = isBestsCard 
-                        ? `#rep-prs-container .pr-card[data-motion="${motion}"]`
-                        : `#bests-container .pr-card[data-motion="${motion}"]`;
-                    const cardToSync = document.querySelector(selector);
-
-                    if (cardToSync) {
-                        const oldContainer = cardToSync.parentElement;
-                        const newContainerSelector = isBestsCard
-                            ? `#rep-prs-container .pr-sortable-container[data-category="${newCategory}"]`
-                            : `#bests-container .pr-sortable-container[data-category="${newCategory}"]`;
-                        const newContainer = document.querySelector(newContainerSelector);
-                        
-                        if (newContainer && oldContainer !== newContainer) {
-                            const placeholderInNew = newContainer.querySelector('.pr-placeholder');
-                            if (placeholderInNew) placeholderInNew.remove();
-                            
-                            newContainer.appendChild(cardToSync);
-
-                            if (oldContainer.querySelectorAll('.pr-card').length === 0) {
-                                const containerType = isBestsCard ? 'repPRs' : 'bests';
-                                oldContainer.innerHTML = (containerType === 'bests')
-                                    ? '<p class="text-gray-500 text-sm pl-4 pr-placeholder">尚無 Bests 紀錄。</p>'
-                                    : '<p class="text-gray-500 text-sm pl-4 pr-placeholder">尚無 Rep PRs 紀錄。</p>';
-                            }
-                        }
+                // === 動作分類編輯器 (R3a) ===
+                async openClassifyModal() {
+                    document.getElementById('exercise-classify-modal')?.classList.remove('hidden');
+                    app.state.classify.changes.clear();
+                    app.state.classify.filter = 'all';
+                    const filterEl = document.getElementById('classify-filter');
+                    if (filterEl) {
+                        filterEl.value = 'all';
+                        filterEl.onchange = () => {
+                            app.state.classify.filter = filterEl.value;
+                            this.renderClassifyList();
+                        };
                     }
-                },
-                
-                togglePREditMode(isEditing) {
-                    app.state.ui.isPREditMode = isEditing;
-                    
-                    document.getElementById('edit-prs-btn').classList.toggle('hidden', isEditing);
-                    document.getElementById('prs-edit-actions').classList.toggle('hidden', !isEditing);
-                    
-                    document.querySelectorAll('.pr-sortable-container').forEach(container => {
-                        const sortableInstance = Sortable.get(container);
-                        if (sortableInstance) {
-                            sortableInstance.option('disabled', !isEditing);
-                        }
-                    });
-
-                    document.querySelectorAll('.pr-card').forEach(card => {
-                        card.classList.toggle('is-editable', isEditing);
-                    });
-
-                    document.querySelectorAll('.js-pr-drag-handle').forEach(handle => handle.classList.toggle('hidden', !isEditing));
-
-                    if (!isEditing) {
-                        app.state.pr.categoryChanges.clear();
-                        // ⭐️ 修正取消邏輯：清除快取再重新載入
-                        app.state.cache.prData = null; 
-                        app.methods.loadPRData();
+                    const list = document.getElementById('classify-list');
+                    if (list) list.innerHTML = '<p class="text-gray-500 text-sm">載入中...</p>';
+                    try {
+                        app.state.classify.catalog = await app.api.getExerciseCatalog(app.state.user.currentUser);
+                        this.renderClassifyList();
+                    } catch (error) {
+                        this.handleError(error, '載入動作目錄失敗');
                     }
                 },
 
-                handleSavePRCategories() {
-                    if (app.state.pr.categoryChanges.size === 0) {
-                        app.ui.showToast('沒有任何分類變更需要儲存。');
-                        this.togglePREditMode(false);
+                closeClassifyModal() {
+                    document.getElementById('exercise-classify-modal')?.classList.add('hidden');
+                },
+
+                _classifyEffective(motion) {
+                    const changed = app.state.classify.changes.get(motion);
+                    if (changed) return changed;
+                    const item = app.state.classify.catalog.find(c => c.motion === motion);
+                    return { category: item ? item.category : '', tags: item ? item.tags.slice() : [] };
+                },
+
+                renderClassifyList() {
+                    const list = document.getElementById('classify-list');
+                    if (!list) return;
+                    const isViewingSelf = !app.state.user.loggedInEmail || app.state.user.currentUser === app.state.user.loggedInEmail;
+                    document.getElementById('auto-classify-btn')?.classList.toggle('hidden', !isViewingSelf);
+                    document.getElementById('save-classify-btn')?.classList.toggle('hidden', !isViewingSelf);
+
+                    const rows = app.state.classify.catalog.filter(item => {
+                        if (app.state.classify.filter !== 'unclassified') return true;
+                        return this._classifyEffective(item.motion).category === '';
+                    });
+                    if (rows.length === 0) {
+                        list.innerHTML = '<p class="text-gray-500 text-sm">沒有符合條件的動作。</p>';
                         return;
                     }
+                    list.innerHTML = rows.map(item => {
+                        const eff = this._classifyEffective(item.motion);
+                        const options = ['<option value="">未分類</option>']
+                            .concat(CATEGORY_ORDER.map(c => `<option value="${c}"${eff.category === c ? ' selected' : ''}>${c}</option>`))
+                            .join('');
+                        const tagChips = ALL_TAGS.map(t => {
+                            const on = eff.tags.indexOf(t) !== -1;
+                            return `<button onclick="app.methods.toggleClassifyTag('${item.motion}','${t}')" class="text-xs px-2 py-1 rounded-full border ${on ? 'bg-yellow-600/80 border-yellow-500 text-white' : 'border-gray-600 text-gray-400'}"${isViewingSelf ? '' : ' disabled'}>${t}</button>`;
+                        }).join('');
+                        return `
+                        <div class="border border-gray-700 rounded-md p-2">
+                            <div class="flex justify-between items-center gap-2">
+                                <span class="text-sm text-yellow-400 truncate">${item.motion}</span>
+                                <select onchange="app.methods.setClassifyCategory('${item.motion}', this.value)" class="rounded-md p-1 text-sm bg-black border border-yellow-500"${isViewingSelf ? '' : ' disabled'}>${options}</select>
+                            </div>
+                            <div class="flex flex-wrap gap-1 mt-2">${tagChips}</div>
+                        </div>`;
+                    }).join('');
+                },
 
-                    app.ui.showLoading(true);
+                setClassifyCategory(motion, category) {
+                    const eff = this._classifyEffective(motion);
+                    app.state.classify.changes.set(motion, { category, tags: eff.tags });
+                    if (app.state.classify.filter === 'unclassified') this.renderClassifyList();
+                },
 
-                    const changesArray = Array.from(app.state.pr.categoryChanges, ([motion, category]) => ({ motion, category }));
+                toggleClassifyTag(motion, tag) {
+                    const eff = this._classifyEffective(motion);
+                    const tags = eff.tags.slice();
+                    const i = tags.indexOf(tag);
+                    if (i === -1) tags.push(tag); else tags.splice(i, 1);
+                    app.state.classify.changes.set(motion, { category: eff.category, tags });
+                    this.renderClassifyList();
+                },
 
-                    app.api.updateMultipleExerciseCategories(changesArray)
-                        .then(response => {
-                            if (response.status === 'success') {
-                                app.ui.showToast(response.message);
-                                app.state.pr.categoryChanges.clear();
-                                app.state.cache.prData = null; // 清除快取
-                                this.togglePREditMode(false);
-                                app.methods.loadPRData();
-                            } else {
-                                throw new Error(response.message);
-                            }
-                        })
-                        .catch(err => {
-                            this.handleError(err, '儲存分類變更失敗');
-                        })
-                        .finally(() => {
-                            app.ui.showLoading(false);
-                        });
+                async runAutoClassify() {
+                    try {
+                        app.ui.showLoading(true);
+                        const res = await app.api.autoClassifyExercises();
+                        app.ui.showToast(`已自動分類 ${res.processed} 個動作，${res.stillUnknown} 個仍需手動指定。`, 'success');
+                        app.state.classify.changes.clear();
+                        app.state.classify.catalog = await app.api.getExerciseCatalog(app.state.user.currentUser);
+                        this.renderClassifyList();
+                        app.state.cache.prData = null;
+                        app.state.cache.analysisData = null;
+                    } catch (error) {
+                        this.handleError(error, '自動分類失敗');
+                    } finally {
+                        app.ui.showLoading(false);
+                    }
+                },
+
+                async saveClassifications() {
+                    if (app.state.classify.changes.size === 0) {
+                        app.ui.showToast('沒有任何變更需要儲存。');
+                        return;
+                    }
+                    const items = Array.from(app.state.classify.changes, ([motion, v]) => ({
+                        motion, category: v.category, tags: v.tags
+                    }));
+                    try {
+                        app.ui.showLoading(true);
+                        const res = await app.api.saveExerciseClassifications(items);
+                        app.ui.showToast(res.message || '分類已儲存！', 'success');
+                        app.state.classify.changes.clear();
+                        app.state.cache.prData = null;
+                        app.state.cache.analysisData = null;
+                        this.closeClassifyModal();
+                        this.loadPRData();
+                    } catch (error) {
+                        this.handleError(error, '儲存分類失敗');
+                    } finally {
+                        app.ui.showLoading(false);
+                    }
                 },
 
                 // ⭐ [新增] 當點擊 "新增/編輯建議" 按鈕時的處理函式

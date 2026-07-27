@@ -251,8 +251,6 @@ export const events = {
 
                 handlePRsPageClick(event) {
                     const target = event.target;
-                    if (target.id === 'edit-prs-btn') app.methods.togglePREditMode(true);
-                    if (target.id === 'cancel-prs-btn') app.methods.togglePREditMode(false);
-                    if (target.id === 'save-prs-btn') app.methods.handleSavePRCategories();
+                    if (target.id === 'edit-prs-btn') app.methods.openClassifyModal();
                 }
 };
