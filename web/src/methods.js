@@ -357,7 +357,7 @@ export const methods = {
                     if (categoryCtx && legendContainer && data.categoryVolumeDistribution && Object.keys(data.categoryVolumeDistribution).length > 0) {
                         
                         // ✨ 修正 1：定義固定的圖例順序
-                        const fixedCategoryOrder = ['胸', '肩', '背', '臀', '腿', '手', '其他'];
+                        const fixedCategoryOrder = CATEGORY_ORDER.concat(['未分類']);
                         const originalLabels = Object.keys(data.categoryVolumeDistribution);
                         
                         // 根據固定順序篩選和排序已存在的標籤
@@ -377,7 +377,9 @@ export const methods = {
                             '胸': 'rgba(239, 68, 68, 0.8)', '背': 'rgba(59, 130, 246, 0.8)',
                             '腿': 'rgba(34, 197, 94, 0.8)', '臀': 'rgba(249, 115, 22, 0.8)',
                             '肩': 'rgba(168, 85, 247, 0.8)', '手': 'rgba(234, 179, 8, 0.8)',
-                            '其他': 'rgba(156, 163, 175, 0.8)'
+                            '核心': 'rgba(20, 184, 166, 0.8)', '有氧': 'rgba(236, 72, 153, 0.8)',
+                            '其他': 'rgba(156, 163, 175, 0.8)',
+                            '未分類': 'rgba(75, 85, 99, 0.8)'
                         };
                         const backgroundColors = sortedCategoryLabels.map(label => categoryColors[label] || categoryColors['其他']);
 
@@ -1283,6 +1285,14 @@ export const methods = {
                         app.ui.showToast('請輸入動作名稱！');
                       }
                     });
+
+                    app.state.exerciseFilter = '';
+                    this.renderExerciseFilterChips();
+                    if (!app.state.classify.catalog || app.state.classify.catalog.length === 0) {
+                        app.api.getExerciseCatalog(app.state.user.currentUser)
+                            .then(catalog => { app.state.classify.catalog = catalog; })
+                            .catch(() => { /* 目錄載入失敗時僅停用篩選，不影響打字新增 */ });
+                    }
                 },
 				
                 updateAutocompleteSuggestions(inputValue) {
@@ -1302,10 +1312,43 @@ export const methods = {
                       const item = document.createElement('button');
                       item.className = 'w-full text-left p-2 bg-gray-800 hover:bg-gray-700 rounded-md js-suggestion-item';
                       item.textContent = name;
+                      item.dataset.motion = name;
                       suggestionsList.appendChild(item);
                     });
+
+                    this.applyExerciseFilter(); // 打字後重新套用目前的 tag 篩選
                 },
-                
+
+                // === 新增動作的 tag 篩選 (R3a) ===
+                renderExerciseFilterChips() {
+                    const box = document.getElementById('exercise-filter-chips');
+                    if (!box) return;
+                    const chips = ['槓鈴', '啞鈴', '機械', '滑輪', '自體重量'].concat(CATEGORY_ORDER.slice(0, 8));
+                    box.innerHTML = chips.map(c => {
+                        const on = app.state.exerciseFilter === c;
+                        return `<button onclick="app.methods.setExerciseFilter('${c}')" class="text-xs px-2 py-1 rounded-full border ${on ? 'bg-yellow-600/80 border-yellow-500 text-white' : 'border-gray-600 text-gray-400'}">${c}</button>`;
+                    }).join('');
+                },
+
+                setExerciseFilter(value) {
+                    app.state.exerciseFilter = (app.state.exerciseFilter === value) ? '' : value;
+                    this.renderExerciseFilterChips();
+                    this.applyExerciseFilter();
+                },
+
+                applyExerciseFilter() {
+                    const filter = app.state.exerciseFilter;
+                    const catalog = app.state.classify.catalog || [];
+                    const infoByMotion = new Map(catalog.map(c => [c.motion, c]));
+                    document.querySelectorAll('#suggestions-list .js-suggestion-item').forEach(el => {
+                        const motion = el.dataset.motion || el.textContent.trim();
+                        if (!filter) { el.classList.remove('hidden'); return; }
+                        const info = infoByMotion.get(motion);
+                        const match = !!info && (info.category === filter || info.tags.indexOf(filter) !== -1);
+                        el.classList.toggle('hidden', !match);
+                    });
+                },
+
                 handleSaveAsTemplateClick() {
                     const exerciseCards = document.querySelectorAll('#workout-list .card');
                     if (exerciseCards.length === 0) {
@@ -1633,7 +1676,15 @@ export const methods = {
                     repPRsContainer.innerHTML = '';
 
                     const todayString = new Date().toDateString();
-                    const categoryOrder = ['胸', '肩', '背', '臀', '腿', '手', '其他'];
+                    // 標準順序優先，資料中實際存在但不在標準清單內的分類附加於末尾——
+                    // 避免調整分類體系時既有資料無聲消失（曾發生：新增分類不在硬編碼清單中即不顯示）
+                    const presentCategories = new Set(
+                        data.bests.map(b => b.category).concat(data.repPRs.map(p => p.category))
+                    );
+                    const extraCategories = Array.from(presentCategories)
+                        .filter(c => c && CATEGORY_ORDER.indexOf(c) === -1 && c !== '未分類')
+                        .sort();
+                    const categoryOrder = CATEGORY_ORDER.concat(extraCategories).concat(['未分類']);
 
                     // 渲染 Bests 區塊
                     const groupedBests = data.bests.reduce((acc, b) => {

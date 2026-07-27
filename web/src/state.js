@@ -53,4 +53,7 @@ export const initialState = {
                     changes: new Map(), // motion -> {category, tags[]}
                     filter: 'all',      // 'all' | 'unclassified'
                 },
+
+                // 新增動作 Modal 的 tag 篩選 (R3a)
+                exerciseFilter: '',
 };
