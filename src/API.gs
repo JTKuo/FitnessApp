@@ -439,7 +439,9 @@ function getWorkoutTemplates(authedEmail, userEmail = null) {
   const templates = {};
 
   data.forEach(row => {
-    const templateName = row[0].trim();
+    // Sheets 的儲存格值不保證是字串（純數字或日期樣式的名稱會被存成數字/日期），
+    // 一律先轉字串再處理——與本檔其他讀取範本的位置一致。
+    const templateName = String(row[0]).trim();
     const exerciseName = row[1];
     const order = row[2];
 
