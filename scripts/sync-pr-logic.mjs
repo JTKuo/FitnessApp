@@ -8,12 +8,13 @@ const TARGETS = [
   ['web/src/pr-logic.js', 'src/PRLogic.gs'],
   ['web/src/body-history.js', 'src/BodyHistory.gs'],
   ['web/src/session-token.js', 'src/SessionToken.gs'],
+  ['web/src/exercise-taxonomy.js', 'src/ExerciseTaxonomy.gs'],
 ];
 for (const [srcPath, outPath] of TARGETS) {
   const src = readFileSync(resolve(root, srcPath), 'utf8');
   const out =
     `// 自動生成，勿手改。來源：${srcPath}（執行 npm run sync:pr 更新）\n` +
-    src.replaceAll('export function', 'function');
+    src.replaceAll('export function', 'function').replaceAll('export const', 'const');
   writeFileSync(resolve(root, outPath), out);
   console.log(`已生成 ${outPath}`);
 }
