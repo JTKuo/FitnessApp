@@ -491,7 +491,8 @@ function saveWorkoutTemplateToServer(authedEmail, templateName, exercises) {
 
     // 1.b 清空
     if (templateSheet.getLastRow() > 1) {
-      templateSheet.getRange(2, 1, templateSheet.getLastRow() - 1, templateSheet.getLastColumn()).clearContents();
+      // Range 的方法是 clearContent()（單數）；clearContents()（複數）只存在於 Sheet。
+      templateSheet.getRange(2, 1, templateSheet.getLastRow() - 1, templateSheet.getLastColumn()).clearContent();
     }
 
     // 1.c 寫回過濾後的資料
@@ -548,7 +549,8 @@ function deleteWorkoutTemplateToServer(authedEmail, templateName) {
 
     // 2. 清空工作表 (從第 2 列開始)
     if (templateSheet.getLastRow() > 1) {
-      templateSheet.getRange(2, 1, templateSheet.getLastRow() - 1, templateSheet.getLastColumn()).clearContents();
+      // Range 的方法是 clearContent()（單數）；clearContents()（複數）只存在於 Sheet。
+      templateSheet.getRange(2, 1, templateSheet.getLastRow() - 1, templateSheet.getLastColumn()).clearContent();
     }
 
     // 3. 一次性寫回剩餘資料
