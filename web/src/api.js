@@ -26,7 +26,22 @@ function releaseRequestSlot() {
   else inFlightCount -= 1;
 }
 
-async function post(body) {
+// GAS 的 /exec 會先回一個轉址到 googleusercontent 的一次性網址，該轉址在服務層
+// 會間歇性回 404（已排除本專案程式碼、併發、service worker、CORS 與部署劣化）。
+// 重試可有效緩解，但有個前提：404 發生在轉址階段，代表後端腳本「已經執行完畢」——
+// 盲目重試寫入類請求會造成重複寫入（訓練被存兩次）。故僅重試唯讀 action。
+const READ_ONLY_ACTIONS = new Set([
+  'getInitialData', 'getLatestPerformance', 'getUniqueExerciseNames', 'getAnalysisData',
+  'getWorkoutTemplates', 'getAllPhotoRecords', 'getAllPRs', 'getPhoto',
+  'getInBodyRecords', 'getExerciseCatalog',
+]);
+const MAX_READ_ATTEMPTS = 3;
+
+function isTransportFailure(err) {
+  return /伺服器錯誤 \(HTTP /.test(err.message);
+}
+
+async function postOnce(body) {
   await acquireRequestSlot();
   try {
     const res = await fetch(API_URL, {
@@ -45,6 +60,22 @@ async function post(body) {
   } finally {
     releaseRequestSlot();
   }
+}
+
+async function post(body) {
+  const attempts = READ_ONLY_ACTIONS.has(body.action) ? MAX_READ_ATTEMPTS : 1;
+  let lastError;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await postOnce(body);
+    } catch (err) {
+      lastError = err;
+      // 僅重試傳輸層失敗；後端回的業務錯誤（憑證、驗證等）立即拋出
+      if (!isTransportFailure(err) || i === attempts - 1) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 400 * (i + 1)));
+    }
+  }
+  throw lastError;
 }
 
 /** 以 Google ID token 換取 session token（session token 由 post 自動存入）。 */
