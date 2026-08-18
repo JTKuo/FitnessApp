@@ -1,6 +1,7 @@
 const STORAGE_PREFIX = 'fitnessapp_rest_timer:';
 const TICK_INTERVAL_MS = 250;
 const USER_SWITCH_TIMEOUT_MS = 120000;
+const RECENT_EXPIRY_NOTIFY_MS = 5 * 60 * 1000;
 
 let initialized = false;
 let endsAt = null;
@@ -99,6 +100,17 @@ function stopTicker() {
     clearInterval(ticker);
     ticker = null;
   }
+}
+
+function notifyFinished() {
+  try {
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      navigator.vibrate([180, 100, 180]);
+    }
+  } catch (_) {
+    // vibration 不是必要功能，失敗時直接忽略。
+  }
+  onFinished();
 }
 
 function setCompleteButtonState(button, completed) {
@@ -287,10 +299,13 @@ export const restTimer = {
     }
 
     if (remainingSeconds(storedEndsAt) <= 0) {
+      const expiredAgoMs = Date.now() - storedEndsAt;
       endsAt = null;
       stopTicker();
       removeStorage(key);
+      updateDisplay(0);
       showTimerBar(false);
+      if (expiredAgoMs >= 0 && expiredAgoMs <= RECENT_EXPIRY_NOTIFY_MS) notifyFinished();
       return false;
     }
 
@@ -307,16 +322,7 @@ export const restTimer = {
     removeStorage(key);
     updateDisplay(0);
     showTimerBar(false);
-
-    try {
-      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
-        navigator.vibrate([180, 100, 180]);
-      }
-    } catch (_) {
-      // vibration 不是必要功能，失敗時直接忽略。
-    }
-
-    onFinished();
+    notifyFinished();
   },
 
   stop() {
