@@ -2,7 +2,6 @@
 // WorkoutSessions V3 foundation
 // =======================================================
 
-const WORKOUT_SESSIONS_SHEET = 'WorkoutSessions';
 const WORKOUT_LOG_SESSION_ID_HEADER = 'SessionId';
 const WORKOUT_SESSION_HEADERS = [
   'SessionId',
@@ -42,8 +41,8 @@ function _ensureWorkoutLogSessionIdHeader(logSheet) {
 }
 
 function _getOrCreateWorkoutSessionsSheet(userSheet) {
-  let sheet = userSheet.getSheetByName(WORKOUT_SESSIONS_SHEET);
-  if (!sheet) sheet = userSheet.insertSheet(WORKOUT_SESSIONS_SHEET);
+  let sheet = userSheet.getSheetByName(CONSTANTS.SHEETS.WORKOUT_SESSIONS);
+  if (!sheet) sheet = userSheet.insertSheet(CONSTANTS.SHEETS.WORKOUT_SESSIONS);
 
   if (sheet.getLastRow() === 0 || sheet.getLastColumn() === 0) {
     sheet.getRange(1, 1, 1, WORKOUT_SESSION_HEADERS.length).setValues([WORKOUT_SESSION_HEADERS]);
