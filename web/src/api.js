@@ -106,9 +106,11 @@ export const backendApi = {
   saveBodyPhotos: (data) => apiCall('saveBodyPhotos', { data }),
   saveProfileData: (cardId, data) => apiCall('saveProfileData', { cardId, data }),
   saveWorkoutData: async (workoutData) => {
+    // request 送出前先綁定草稿 owner，避免等待 GAS 回應期間 Admin 又切換學員。
+    const draftCommitContext = workoutDraft.captureCommitContext();
     const result = await apiCall('saveWorkoutData', { workoutData });
     // WorkoutLog 已收到成功回應才視為 commit；PR 後處理失敗不應讓草稿復活。
-    workoutDraft.markCommitted();
+    workoutDraft.markCommitted(draftCommitContext);
     return result;
   },
   saveWorkoutTemplate: (templateName, exercises) => apiCall('saveWorkoutTemplate', { templateName, exercises }),
