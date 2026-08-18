@@ -6,10 +6,12 @@ import { events } from './events.js';
 import { methods } from './methods.js';
 import { ui } from './ui.js';
 import { workoutDraft } from './workout-draft.js';
+import { restTimer } from './rest-timer.js';
 
 export const app = {
     cache,
     workoutDraft,
+    restTimer,
     state: initialState,
 
             init() {
@@ -26,6 +28,18 @@ export const app = {
                         this.methods.updateDailyTotalVolume();
                     }
                 });
+
+                this.restTimer.init({
+                    getCurrentUser: () => this.state.user.currentUser,
+                    defaultRestSeconds: APP_CONSTANTS.WORKOUT.DEFAULT_REST_TIME,
+                    onFinished: () => this.ui.showToast('休息結束！'),
+                    onInvalidComplete: () => this.ui.showToast('請先輸入這一組的重量或次數。', 'error')
+                });
+
+                // 保留舊事件層的呼叫介面，但底層全面改由 timestamp timer 處理。
+                this.methods.startTimer = (seconds) => this.restTimer.start(seconds);
+                this.methods.addTimerTime = (seconds) => this.restTimer.adjust(seconds);
+                this.methods.resetTimer = () => this.restTimer.stop();
 
                 if (!this.state.charts) {
                     this.state.charts = {
@@ -59,8 +73,9 @@ export const app = {
                     this.ui.populateLatestPhotos(profile.latestPhotos);
                     this.ui.populateTemplateList(templates);
 
-                    // 使用者身份確定後才讀取對應草稿，避免不同帳號互相污染。
+                    // 使用者身份確定後才讀取對應本機狀態，避免不同帳號互相污染。
                     this.workoutDraft.restore();
+                    this.restTimer.restore();
 
                     if (this.state.user.isAdmin) {
                         this.ui.showAdminBar(true);
