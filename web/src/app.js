@@ -5,14 +5,28 @@ import { cache } from './cache.js';
 import { events } from './events.js';
 import { methods } from './methods.js';
 import { ui } from './ui.js';
+import { workoutDraft } from './workout-draft.js';
 
 export const app = {
     cache,
+    workoutDraft,
     state: initialState,
 
             init() {
                 console.log('App 初始化...');
                 this.ui.showLoading(true);
+
+                this.workoutDraft.init({
+                    getCurrentUser: () => this.state.user.currentUser,
+                    onRestored: () => this.ui.showToast('已恢復未完成的訓練草稿。'),
+                    recalculateVolumes: () => {
+                        document.querySelectorAll('#workout-list .card').forEach(card => {
+                            this.methods.calculateVolume(card);
+                        });
+                        this.methods.updateDailyTotalVolume();
+                    }
+                });
+
                 if (!this.state.charts) {
                     this.state.charts = {
                         bodyStats: null,
@@ -44,6 +58,9 @@ export const app = {
                     this.methods.calculateRecommendations();
                     this.ui.populateLatestPhotos(profile.latestPhotos);
                     this.ui.populateTemplateList(templates);
+
+                    // 使用者身份確定後才讀取對應草稿，避免不同帳號互相污染。
+                    this.workoutDraft.restore();
 
                     if (this.state.user.isAdmin) {
                         this.ui.showAdminBar(true);
