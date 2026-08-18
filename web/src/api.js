@@ -1,6 +1,7 @@
 // 後端 API 呼叫層：取代舊 app.api（google.script.run）。
 // 方法名稱與簽名與舊版完全一致，回傳值形狀也一致（router 只包一層 ok/data）。
 import { getValidToken, requestReauth, storeSessionToken } from './auth.js';
+import { workoutDraft } from './workout-draft.js';
 
 const API_URL = import.meta.env.VITE_GAS_API_URL;
 
@@ -104,7 +105,14 @@ export const backendApi = {
   getAnalysisData: (userEmail = null) => apiCall('getAnalysisData', { userEmail }),
   saveBodyPhotos: (data) => apiCall('saveBodyPhotos', { data }),
   saveProfileData: (cardId, data) => apiCall('saveProfileData', { cardId, data }),
-  saveWorkoutData: (workoutData) => apiCall('saveWorkoutData', { workoutData }),
+  saveWorkoutData: async (workoutData) => {
+    // request 送出前先綁定草稿 owner，避免等待 GAS 回應期間 Admin 又切換學員。
+    const draftCommitContext = workoutDraft.captureCommitContext();
+    const result = await apiCall('saveWorkoutData', { workoutData });
+    // WorkoutLog 已收到成功回應才視為 commit；PR 後處理失敗不應讓草稿復活。
+    workoutDraft.markCommitted(draftCommitContext);
+    return result;
+  },
   saveWorkoutTemplate: (templateName, exercises) => apiCall('saveWorkoutTemplate', { templateName, exercises }),
   getWorkoutTemplates: (userEmail = null) => apiCall('getWorkoutTemplates', { userEmail }),
   deleteWorkoutTemplate: (templateName) => apiCall('deleteWorkoutTemplate', { templateName }),
