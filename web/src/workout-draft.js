@@ -305,27 +305,38 @@ export const workoutDraft = {
     }
   },
 
-  markCommitted() {
+  captureCommitContext() {
+    const email = normalizeEmail(getCurrentUser());
+    const payload = collectDraftPayload();
+    return {
+      email,
+      fingerprint: payload && payload.exercises.length > 0 ? fingerprint(payload) : '',
+    };
+  },
+
+  markCommitted(context = null) {
     if (saveTimer) {
       clearTimeout(saveTimer);
       saveTimer = null;
     }
 
-    const email = normalizeEmail(getCurrentUser());
+    const email = normalizeEmail(context?.email || getCurrentUser());
     const key = storageKey(email);
-    const payload = collectDraftPayload();
     if (!email || !key) return;
 
-    if (payload && payload.exercises.length > 0) {
-      committedFingerprints.set(email, fingerprint(payload));
-    } else {
-      committedFingerprints.delete(email);
+    let committedFingerprint = context?.fingerprint || '';
+    if (!committedFingerprint) {
+      const payload = collectDraftPayload();
+      if (payload && payload.exercises.length > 0) committedFingerprint = fingerprint(payload);
     }
+
+    if (committedFingerprint) committedFingerprints.set(email, committedFingerprint);
+    else committedFingerprints.delete(email);
     removeStorage(key);
   },
 
-  clear() {
-    const email = normalizeEmail(getCurrentUser());
+  clear(emailOverride = null) {
+    const email = normalizeEmail(emailOverride || getCurrentUser());
     committedFingerprints.delete(email);
     removeStorage(storageKey(email));
   },
