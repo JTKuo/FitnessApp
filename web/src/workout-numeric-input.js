@@ -115,8 +115,25 @@ function commitBuffer() {
 }
 
 function getDisplayValue() {
-  if (!buffer) return '0';
-  return buffer;
+  return buffer || '0';
+}
+
+function applyKey(key) {
+  if (!activeInput || !activeKind) return false;
+
+  if (/^\d$/.test(key)) {
+    buffer = appendDigit(buffer, key, activeKind);
+  } else if (key === '.') {
+    buffer = appendDecimal(buffer, activeKind);
+  } else if (key === 'Backspace') {
+    buffer = backspaceBuffer(buffer);
+  } else {
+    return false;
+  }
+
+  commitBuffer();
+  renderPanel();
+  return true;
 }
 
 function buildStepButtons(kind) {
@@ -160,7 +177,7 @@ function createPanel() {
   wrapper.className = 'hidden fixed inset-0 z-[70]';
   wrapper.innerHTML = `
     <button type="button" data-action="done" class="absolute inset-0 h-full w-full bg-black/70" aria-label="關閉數字輸入"></button>
-    <section role="dialog" aria-modal="true" aria-label="訓練數字輸入" class="absolute bottom-0 left-1/2 w-full max-w-lg -translate-x-1/2 rounded-t-2xl border border-gray-700 bg-[#1c1a19] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl">
+    <section role="dialog" aria-modal="true" aria-label="訓練數字輸入" class="absolute bottom-0 left-1/2 max-h-[92vh] w-full max-w-lg -translate-x-1/2 overflow-y-auto rounded-t-2xl border border-gray-700 bg-[#1c1a19] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl">
       <div class="mb-3 flex items-center justify-between">
         <div>
           <p class="text-xs text-gray-500">快速輸入</p>
@@ -206,19 +223,12 @@ function createPanel() {
     if (!activeInput || !activeKind) return;
 
     if (action === 'key') {
-      const key = button.dataset.key;
-      buffer = key === '.'
-        ? appendDecimal(buffer, activeKind)
-        : appendDigit(buffer, key, activeKind);
-      commitBuffer();
-      renderPanel();
+      applyKey(button.dataset.key);
       return;
     }
 
     if (action === 'backspace') {
-      buffer = backspaceBuffer(buffer);
-      commitBuffer();
-      renderPanel();
+      applyKey('Backspace');
       return;
     }
 
@@ -273,14 +283,25 @@ export const workoutNumericInput = {
       this.open(input);
     });
 
-    const observer = new MutationObserver((mutations) => {
+    const observer = new MutationObserver(() => {
       decorateWorkoutInputs(workoutList);
       if (activeInput && !document.contains(activeInput)) this.close();
     });
     observer.observe(workoutList, { childList: true, subtree: true });
 
     document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && activeInput) this.close();
+      if (!activeInput) return;
+
+      if (event.key === 'Escape' || event.key === 'Enter') {
+        event.preventDefault();
+        this.close();
+        return;
+      }
+
+      if (/^\d$/.test(event.key) || event.key === '.' || event.key === 'Backspace') {
+        event.preventDefault();
+        applyKey(event.key);
+      }
     });
   },
 
