@@ -7,11 +7,13 @@ import { methods } from './methods.js';
 import { ui } from './ui.js';
 import { workoutDraft } from './workout-draft.js';
 import { restTimer } from './rest-timer.js';
+import { workoutNumericInput } from './workout-numeric-input.js';
 
 export const app = {
     cache,
     workoutDraft,
     restTimer,
+    workoutNumericInput,
     state: initialState,
 
             init() {
@@ -35,6 +37,8 @@ export const app = {
                     onFinished: () => this.ui.showToast('休息結束！'),
                     onInvalidComplete: () => this.ui.showToast('請先輸入這一組的重量或次數。', 'error')
                 });
+
+                this.workoutNumericInput.init();
 
                 // 保留舊事件層的呼叫介面，但底層全面改由 timestamp timer 處理。
                 this.methods.startTimer = (seconds) => this.restTimer.start(seconds);
