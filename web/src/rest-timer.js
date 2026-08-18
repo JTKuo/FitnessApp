@@ -41,6 +41,14 @@ function formatTime(seconds) {
   return `${mins}:${secs}`;
 }
 
+function isUserSwitchSettled(currentEmail, targetEmail, previousEmail, isLoading) {
+  if (isLoading) return false;
+  const current = normalizeEmail(currentEmail);
+  const target = normalizeEmail(targetEmail);
+  const previous = normalizeEmail(previousEmail);
+  return Boolean(current && (current === target || current === previous));
+}
+
 function getTimerBar() {
   return document.getElementById('rest-timer-bar');
 }
@@ -147,18 +155,21 @@ function setHasWorkoutData(setRow) {
   return weight > 0 || reps > 0;
 }
 
-function finishUserSwitchWatch(targetEmail, startedAt) {
-  const currentEmail = normalizeEmail(getCurrentUser());
-  const target = normalizeEmail(targetEmail);
+function finishUserSwitchWatch(targetEmail, previousEmail, startedAt) {
+  const loadingOverlay = document.getElementById('loading-overlay');
+  const currentEmail = getCurrentUser();
+  const isLoading = loadingOverlay?.style.display === 'flex';
+  const completed = isUserSwitchSettled(currentEmail, targetEmail, previousEmail, isLoading);
   const timedOut = Date.now() - startedAt >= USER_SWITCH_TIMEOUT_MS;
 
-  if (currentEmail !== target && !timedOut) return false;
+  if (!completed && !timedOut) return false;
 
   if (timedOut) {
     console.warn('[RestTimer] 等待管理員切換使用者逾時。');
-  } else {
-    restTimer.restore();
   }
+
+  // 成功切到目標使用者或切換失敗回到原使用者，都恢復「目前使用者」自己的 timer。
+  restTimer.restore();
   return true;
 }
 
@@ -224,10 +235,11 @@ export const restTimer = {
 
         if (switchWatchTimer) clearInterval(switchWatchTimer);
         const targetEmail = event.target.value;
+        const previousEmail = getCurrentUser();
         const startedAt = Date.now();
         setTimeout(() => {
           switchWatchTimer = setInterval(() => {
-            if (finishUserSwitchWatch(targetEmail, startedAt)) {
+            if (finishUserSwitchWatch(targetEmail, previousEmail, startedAt)) {
               clearInterval(switchWatchTimer);
               switchWatchTimer = null;
             }
@@ -339,4 +351,5 @@ export const restTimerInternals = {
   remainingSeconds,
   adjustedEndsAt,
   formatTime,
+  isUserSwitchSettled,
 };
