@@ -38,9 +38,13 @@ describe('rest timer helpers', () => {
   });
 
   it('Admin 切換成功或失敗回原使用者都能結束 watcher', () => {
+    // 成功切到目標使用者。
     expect(isUserSwitchSettled('student@example.com', 'student@example.com', 'admin@example.com', false)).toBe(true);
+    // API 失敗後仍停在原使用者，也應視為 settled，恢復原使用者 timer。
     expect(isUserSwitchSettled('admin@example.com', 'student@example.com', 'admin@example.com', false)).toBe(true);
+    // loading overlay 還在時不能提早收尾。
     expect(isUserSwitchSettled('student@example.com', 'student@example.com', 'admin@example.com', true)).toBe(false);
+    // 不明第三個使用者也不能誤判完成。
     expect(isUserSwitchSettled('other@example.com', 'student@example.com', 'admin@example.com', false)).toBe(false);
   });
 });
