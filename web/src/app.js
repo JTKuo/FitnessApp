@@ -8,17 +8,27 @@ import { ui } from './ui.js';
 import { workoutDraft } from './workout-draft.js';
 import { restTimer } from './rest-timer.js';
 import { workoutNumericInput } from './workout-numeric-input.js';
+import { workoutSession } from './workout-session.js';
 
 export const app = {
     cache,
     workoutDraft,
     restTimer,
     workoutNumericInput,
+    workoutSession,
     state: initialState,
 
             init() {
                 console.log('App 初始化...');
                 this.ui.showLoading(true);
+
+                // Session-level UI 必須先建立，Workout Draft 才能一起監聽/恢復全日備註。
+                this.workoutSession.init();
+
+                // 保留既有 collectWorkoutData() 的資料格式，再附加 session metadata。
+                // processWorkoutForPRs() 會忽略額外欄位，因此不需要改 PR 流程或 API 簽名。
+                const collectWorkoutDataBase = this.methods.collectWorkoutData.bind(this.methods);
+                this.methods.collectWorkoutData = () => this.workoutSession.enrichWorkoutData(collectWorkoutDataBase());
 
                 this.workoutDraft.init({
                     getCurrentUser: () => this.state.user.currentUser,
