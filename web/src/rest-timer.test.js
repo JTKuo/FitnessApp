@@ -7,6 +7,7 @@ const {
   remainingSeconds,
   adjustedEndsAt,
   formatTime,
+  isUserSwitchSettled,
 } = restTimerInternals;
 
 describe('rest timer helpers', () => {
@@ -34,5 +35,12 @@ describe('rest timer helpers', () => {
     expect(formatTime(0)).toBe('00:00');
     expect(formatTime(30)).toBe('00:30');
     expect(formatTime(90)).toBe('01:30');
+  });
+
+  it('Admin 切換成功或失敗回原使用者都能結束 watcher', () => {
+    expect(isUserSwitchSettled('student@example.com', 'student@example.com', 'admin@example.com', false)).toBe(true);
+    expect(isUserSwitchSettled('admin@example.com', 'student@example.com', 'admin@example.com', false)).toBe(true);
+    expect(isUserSwitchSettled('student@example.com', 'student@example.com', 'admin@example.com', true)).toBe(false);
+    expect(isUserSwitchSettled('other@example.com', 'student@example.com', 'admin@example.com', false)).toBe(false);
   });
 });
