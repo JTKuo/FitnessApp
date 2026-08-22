@@ -1,4 +1,4 @@
-const INPUT_SELECTOR = '.js-weight-input, .js-reps-input';
+const INPUT_SELECTOR = '.js-weight-input, .js-reps-input, .js-duration-input';
 const PANEL_ID = 'workout-numeric-input-panel';
 
 const CONFIG = {
@@ -14,6 +14,12 @@ const CONFIG = {
     decimals: 0,
     steps: [-5, -1, 1, 5],
   },
+  duration: {
+    label: '持續時間（秒）',
+    max: 36000,
+    decimals: 0,
+    steps: [-30, -10, 10, 30],
+  },
 };
 
 let initialized = false;
@@ -27,6 +33,7 @@ let previousBodyOverflow = '';
 function getKind(input) {
   if (input?.classList?.contains('js-weight-input')) return 'weight';
   if (input?.classList?.contains('js-reps-input')) return 'reps';
+  if (input?.classList?.contains('js-duration-input')) return 'duration';
   return null;
 }
 
@@ -164,8 +171,8 @@ function renderPanel() {
       : 'grid grid-cols-4 gap-2 mb-3';
   }
   if (decimalButton) {
-    decimalButton.disabled = activeKind !== 'weight';
-    decimalButton.classList.toggle('opacity-30', activeKind !== 'weight');
+    decimalButton.disabled = config.decimals === 0;
+    decimalButton.classList.toggle('opacity-30', config.decimals === 0);
   }
 }
 
@@ -257,7 +264,8 @@ function decorateInput(input) {
   input.setAttribute('aria-haspopup', 'dialog');
   input.setAttribute('autocomplete', 'off');
   if (!input.getAttribute('aria-label')) {
-    input.setAttribute('aria-label', getKind(input) === 'weight' ? '重量' : '次數');
+    const kind = getKind(input);
+    input.setAttribute('aria-label', kind === 'weight' ? '重量' : (kind === 'duration' ? '持續秒數' : '次數'));
   }
 }
 
