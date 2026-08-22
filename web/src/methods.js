@@ -1190,7 +1190,10 @@ export const methods = {
                 getExerciseMetadata(name) {
                     const motion = String(name || '').trim();
                     if (!motion) return null;
-                    const catalog = app.state.cache.exerciseCatalog || app.state.classify.catalog || [];
+                    const cachedCatalog = app.state.cache.exerciseCatalog;
+                    const catalog = Array.isArray(cachedCatalog) && cachedCatalog.length > 0
+                        ? cachedCatalog
+                        : (app.state.classify.catalog || []);
                     return catalog.find((item) => item.motion === motion) || null;
                 },
 
@@ -1508,12 +1511,16 @@ export const methods = {
                     setTimeout(() => cardElement.classList.add('is-visible'), 10);
                     const performanceEl = cardElement.querySelector('.js-last-performance');
                     app.api.getLatestPerformance(name, app.state.user.currentUser).then(data => {
-                      if (data?.tracking_type === TRACKING_TYPE.DURATION && data.duration_sec > 0) {
-                        performanceEl.innerHTML = `上次: <span class="font-bold">${formatDuration(data.duration_sec)}</span>`;
+                      if (trackingType === TRACKING_TYPE.DURATION) {
+                        if (data?.tracking_type === TRACKING_TYPE.DURATION && data.duration_sec > 0) {
+                          performanceEl.innerHTML = `上次: <span class="font-bold">${formatDuration(data.duration_sec)}</span>`;
+                        } else {
+                          performanceEl.textContent = '無時間紀錄';
+                        }
                       } else if (data && data.weight_kg != null && data.reps != null) {
                         performanceEl.innerHTML = `上次: <span class="font-bold">${data.weight_kg} kg x ${data.reps} 次</span>`;
                       } else {
-                        performanceEl.textContent = trackingType === TRACKING_TYPE.DURATION ? '無時間紀錄' : '無歷史紀錄';
+                        performanceEl.textContent = '無歷史紀錄';
                       }
                     }).catch(err => {
                       performanceEl.textContent = '查詢失敗';
