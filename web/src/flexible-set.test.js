@@ -84,6 +84,21 @@ describe('flexible set helpers', () => {
     })]);
   });
 
+  it('drops stale hidden weight/reps data when an exercise switches to duration', () => {
+    const legacy = [{
+      date: '2026-08-22T09:00:00.000Z', motion: '棒式', set: 1,
+      weight: 20, unit: '公斤', reps: 10, weight_in_kg: 20, note: '',
+    }];
+    const descriptors = [{
+      motion: '棒式', set: 1, setType: 'working', trackingType: 'duration', durationSec: 45,
+      exerciseId: 'ex_plank', side: 'both', loadMode: 'bodyweight', note: '',
+    }];
+
+    const result = enrichWorkoutData(legacy, descriptors, '2026-08-22T09:00:00.000Z');
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ tracking_type: 'duration', duration_sec: 45, weight: 0, reps: 0 });
+  });
+
   it('ignores empty duration rows', () => {
     const descriptors = [{
       motion: '棒式', set: 1, setType: 'working', trackingType: 'duration', durationSec: 0,
