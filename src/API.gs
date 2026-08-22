@@ -440,18 +440,6 @@ function saveWorkoutDataToServer(authedEmail, workoutData) {
       _writeNewLog(logSheet, date, workoutData, savedAdminComments);
     });
 
-    // 讓新動作自動進入分類目錄（失敗僅記錄，絕不影響訓練記錄的儲存）
-    try {
-      _traceWorkoutSaveStep('exercise.register', function () {
-        _ensureExercisesRegistered(
-          authedEmail,
-          userSheet,
-          workoutData.map(function (s) { return s.motion; })
-        );
-      });
-    } catch (e) {
-      Logger.log('自動登錄動作分類失敗（不影響訓練儲存）：' + e.message);
-    }
 
     const performance = _finishWorkoutSaveTrace();
     Logger.log('[Workout Save Trace] ' + JSON.stringify(performance));

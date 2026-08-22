@@ -348,7 +348,10 @@ function _writeNewLog(sheet, date, workoutData, savedAdminComments) {
   let exerciseMetadataMap = new Map();
   try {
     exerciseMetadataMap = _traceWorkoutSaveStep('exercise.metadata', function () {
-      return _getExerciseMetadataMap(userSheet);
+      return _prepareWorkoutExerciseMetadata(
+        userSheet,
+        workoutData.map(function (set) { return set.motion; })
+      );
     });
   } catch (e) {
     Logger.log('WorkoutLog V3 metadata read failed; save continues without ExerciseId: ' + e.message);
