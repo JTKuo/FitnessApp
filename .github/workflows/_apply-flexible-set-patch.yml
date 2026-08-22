@@ -1,0 +1,46 @@
+name: Apply flexible set patch
+
+on:
+  push:
+    branches: [feat/flexible-set-duration]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    # Second push intentionally retriggers this workflow after the workflow file already exists on the branch.
+    if: ${{ !contains(github.event.head_commit.message, '[flexible-set-patched]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/flexible-set-duration
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Apply backend patch
+        run: python scripts/_apply_flexible_set_patch.py
+      - name: Check patch whitespace
+        run: git diff --check
+      - name: Install frontend dependencies
+        working-directory: web
+        run: npm ci
+      - name: Run frontend tests
+        working-directory: web
+        run: npm run test
+      - name: Build frontend
+        working-directory: web
+        run: npm run build
+      - name: Remove temporary patch runner
+        run: rm scripts/_apply_flexible_set_patch.py .github/workflows/_apply-flexible-set-patch.yml
+      - name: Commit validated patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: wire flexible set backend [flexible-set-patched]"
+          git push origin HEAD:feat/flexible-set-duration
