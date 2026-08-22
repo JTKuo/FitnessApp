@@ -2,7 +2,7 @@ import { app } from './app.js';                 // call-time 引用，無循環�
 import { APP_CONSTANTS } from './constants.js';
 import { renderDrivePhoto } from './photos.js';
 import { CATEGORY_ORDER, ALL_TAGS } from './exercise-taxonomy.js';
-import { normalizeSetType } from './set-type.js';
+import { normalizeSetType, SET_TYPE } from './set-type.js';
 
 export const methods = {
                 handleError(error, contextMessage = "發生錯誤") {
@@ -1125,12 +1125,12 @@ export const methods = {
                         const weightInput = set.querySelector('.js-weight-input');
                         const repsInput = set.querySelector('.js-reps-input');
                         const unitSelect = set.querySelector('.js-unit-select');
-                        const setTypeSelect = set.querySelector('.js-set-type-select');
+                        const setTypeToggle = set.querySelector('.js-set-type-toggle');
 
                         const weight = parseFloat(weightInput.value) || 0;
                         const reps = parseInt(repsInput.value) || 0;
                         const unit = unitSelect.value;
-                        const setType = normalizeSetType(setTypeSelect?.value);
+                        const setType = normalizeSetType(setTypeToggle?.dataset.setType);
 
                         let weightInKg = weight;
                         if (unit === '磅') {
@@ -1229,13 +1229,34 @@ export const methods = {
                     }
                 },
 				
+                applySetTypeToToggle(button, value) {
+                    if (!button) return;
+                    const setType = normalizeSetType(value);
+                    const isWarmup = setType === SET_TYPE.WARMUP;
+                    button.dataset.setType = setType;
+                    button.setAttribute('aria-pressed', isWarmup ? 'true' : 'false');
+                    button.setAttribute(
+                        'aria-label',
+                        isWarmup ? '目前為熱身組，點擊切換為工作組' : '目前為工作組，點擊切換為熱身組'
+                    );
+                },
+
+                toggleSetType(button) {
+                    if (!button) return;
+                    const current = normalizeSetType(button.dataset.setType);
+                    const next = current === SET_TYPE.WARMUP ? SET_TYPE.WORKING : SET_TYPE.WARMUP;
+                    this.applySetTypeToToggle(button, next);
+                    button.dispatchEvent(new Event('change', { bubbles: true }));
+                },
+
                 // 輔助函式：專門用來從模板創建一個「組」元素
                 createSetElement(setNumber) {
                     const template = document.getElementById('set-row-template');
                     const newSet = document.importNode(template.content, true); // 複製模板
                     
                     // 填入組別編號
-                    newSet.querySelector('.js-set-number').textContent = `SET ${setNumber}`;
+                    newSet.querySelector('.js-set-number').textContent = String(setNumber);
+                    this.applySetTypeToToggle(newSet.querySelector('.js-set-type-toggle'), SET_TYPE.WORKING);
                     return newSet;
                 },
                 
@@ -1252,7 +1273,7 @@ export const methods = {
                         const lastSet = allSets[allSets.length - 1];
                         lastWeight = lastSet.querySelector('.js-weight-input').value;
                         lastUnit = lastSet.querySelector('.js-unit-select').value;
-                        lastSetType = normalizeSetType(lastSet.querySelector('.js-set-type-select')?.value);
+                        lastSetType = normalizeSetType(lastSet.querySelector('.js-set-type-toggle')?.dataset.setType);
                     }
 
                     const newSetElement = this.createSetElement(setNumber);
@@ -1261,8 +1282,8 @@ export const methods = {
                     // (新功能) 將數據填入新的一組
                     newSetElement.querySelector('.js-weight-input').value = lastWeight;
                     newSetElement.querySelector('.js-unit-select').value = lastUnit;
-                    const newSetTypeSelect = newSetElement.querySelector('.js-set-type-select');
-                    if (newSetTypeSelect) newSetTypeSelect.value = lastSetType;
+                    const newSetTypeToggle = newSetElement.querySelector('.js-set-type-toggle');
+                    this.applySetTypeToToggle(newSetTypeToggle, lastSetType);
                     
                     setsContainer.appendChild(newSetElement);
                     const addedSet = setsContainer.querySelector('.js-set-row:last-child');
@@ -1522,7 +1543,7 @@ export const methods = {
                     const lastWeight = lastSet.querySelector('.js-weight-input').value;
                     const lastReps = lastSet.querySelector('.js-reps-input').value;
                     const lastUnit = lastSet.querySelector('.js-unit-select').value;
-                    const lastSetType = normalizeSetType(lastSet.querySelector('.js-set-type-select')?.value);
+                    const lastSetType = normalizeSetType(lastSet.querySelector('.js-set-type-toggle')?.dataset.setType);
                     
                     // 先新增一個空白組
                     this.addSet(exerciseCard);
@@ -1534,8 +1555,8 @@ export const methods = {
                         newSet.querySelector('.js-weight-input').value = lastWeight;
                         newSet.querySelector('.js-reps-input').value = lastReps;
                         newSet.querySelector('.js-unit-select').value = lastUnit;
-                        const newSetTypeSelect = newSet.querySelector('.js-set-type-select');
-                        if (newSetTypeSelect) newSetTypeSelect.value = lastSetType;
+                        const newSetTypeToggle = newSet.querySelector('.js-set-type-toggle');
+                        this.applySetTypeToToggle(newSetTypeToggle, lastSetType);
                     }
                     
                     // 更新總容量計算

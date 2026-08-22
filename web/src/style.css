@@ -244,3 +244,245 @@
             height: auto !important;
             overflow: visible !important;
         }
+
+
+/* --- Workout Set Row Redesign --- */
+.workout-exercise-card {
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(12, 11, 10, 0.84);
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.22);
+}
+
+.workout-card-summary {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding-bottom: 0.65rem;
+}
+
+.workout-set-row {
+    display: grid;
+    grid-template-columns: 3.25rem minmax(0, 1fr) 2rem;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 3.5rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+}
+
+.workout-set-row:last-child {
+    border-bottom-color: transparent;
+}
+
+.workout-set-meta {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.1rem;
+}
+
+.workout-set-number {
+    color: #9ca3af;
+    font-size: 0.8rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.workout-set-type-toggle {
+    min-height: 1.55rem;
+    border: 0;
+    border-radius: 9999px;
+    background: transparent;
+    padding: 0.15rem 0.38rem;
+    color: #8b949e;
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1;
+    transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.workout-set-type-toggle:active {
+    transform: scale(0.94);
+}
+
+.workout-set-type-toggle .set-type-warmup {
+    display: none;
+}
+
+.workout-set-type-toggle[data-set-type="warmup"] {
+    background: rgba(255, 195, 0, 0.10);
+    color: #f8c846;
+}
+
+.workout-set-type-toggle[data-set-type="warmup"] .set-type-working {
+    display: none;
+}
+
+.workout-set-type-toggle[data-set-type="warmup"] .set-type-warmup {
+    display: inline-flex;
+}
+
+.workout-set-inputs {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) 0.8rem minmax(0, 0.85fr);
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+}
+
+.workout-number-field {
+    display: flex;
+    min-width: 0;
+    min-height: 2.8rem;
+    align-items: center;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.75rem;
+    background: rgba(255, 255, 255, 0.035);
+    transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+.workout-number-field:focus-within {
+    border-color: rgba(255, 195, 0, 0.72);
+    background: rgba(255, 195, 0, 0.035);
+    box-shadow: 0 0 0 2px rgba(255, 195, 0, 0.08);
+}
+
+.workout-exercise-card .workout-set-input,
+.workout-exercise-card .workout-unit-select {
+    min-width: 0;
+    border: 0 !important;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none !important;
+    color: #f3f4f6;
+}
+
+.workout-exercise-card .workout-set-input {
+    flex: 1 1 auto;
+    width: 100%;
+    padding: 0.6rem 0.25rem 0.6rem 0.65rem;
+    text-align: center;
+    font-size: 1.05rem;
+    font-weight: 650;
+}
+
+.workout-exercise-card .workout-unit-select {
+    flex: 0 0 auto;
+    width: 2.9rem;
+    padding: 0.6rem 0.2rem;
+    color: #9ca3af;
+    font-size: 0.72rem;
+    text-align: center;
+}
+
+.workout-field-suffix {
+    flex: 0 0 auto;
+    padding-right: 0.55rem;
+    color: #737b86;
+    font-size: 0.75rem;
+}
+
+.workout-multiply {
+    color: #606873;
+    text-align: center;
+    font-size: 0.9rem;
+}
+
+.workout-icon-button {
+    display: inline-flex;
+    min-width: 2rem;
+    min-height: 2rem;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 9999px;
+    background: transparent;
+    transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.workout-icon-button:active {
+    transform: scale(0.9);
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.workout-delete-set {
+    color: #616975;
+}
+
+.workout-delete-set:active {
+    color: #f87171;
+}
+
+.workout-exercise-card .workout-note {
+    border: 1px solid rgba(255, 255, 255, 0.10) !important;
+    background: rgba(255, 255, 255, 0.025);
+    box-shadow: none;
+    color: #d1d5db;
+}
+
+.workout-exercise-card .workout-note:focus {
+    border-color: rgba(255, 195, 0, 0.45) !important;
+    box-shadow: 0 0 0 2px rgba(255, 195, 0, 0.07);
+}
+
+.workout-card-actions {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr 1fr;
+    gap: 0.45rem;
+}
+
+.workout-action {
+    display: inline-flex;
+    min-height: 2.6rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    border-radius: 0.75rem;
+    padding: 0.45rem 0.55rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    transition: transform 140ms ease, background-color 140ms ease, border-color 140ms ease;
+}
+
+.workout-action:active {
+    transform: scale(0.97);
+}
+
+.workout-action-primary {
+    border: 1px solid rgba(255, 195, 0, 0.42);
+    background: rgba(255, 195, 0, 0.13);
+    color: #f6ca54;
+}
+
+.workout-action-secondary {
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    background: rgba(255, 255, 255, 0.035);
+    color: #b8c0cc;
+}
+
+@media (max-width: 390px) {
+    .workout-set-row {
+        grid-template-columns: 3rem minmax(0, 1fr) 1.8rem;
+        gap: 0.35rem;
+    }
+
+    .workout-set-inputs {
+        gap: 0.25rem;
+    }
+
+    .workout-exercise-card .workout-set-input {
+        padding-left: 0.4rem;
+        font-size: 1rem;
+    }
+
+    .workout-action {
+        gap: 0.2rem;
+        padding-inline: 0.35rem;
+        font-size: 0.74rem;
+    }
+}
