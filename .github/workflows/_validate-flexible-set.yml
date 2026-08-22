@@ -9,6 +9,7 @@ permissions:
 
 jobs:
   test-build-cleanup:
+    # Workflow already exists on this branch; this follow-up push is the validation trigger.
     if: ${{ !contains(github.event.head_commit.message, '[flexible-set-validated]') }}
     runs-on: ubuntu-latest
     steps:
