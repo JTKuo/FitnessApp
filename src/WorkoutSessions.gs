@@ -101,11 +101,26 @@ function _generateWorkoutSessionId(date) {
 }
 
 /**
+ * Run additive schema migrations that should never block a workout save.
+ * ExerciseMaster V2 is intentionally lazy: active users are upgraded on their
+ * next save without requiring a destructive bulk migration across Drive.
+ */
+function _runWorkoutV3LazyMigrations(userSheet) {
+  try {
+    _ensureExerciseMasterV2ForUserSheet(userSheet);
+  } catch (e) {
+    Logger.log('ExerciseMaster V2 lazy migration failed; workout save will continue: ' + e.message);
+  }
+}
+
+/**
  * Current Workout UI still models one session per calendar day.
  * Re-saving the same day therefore reuses its SessionId. Multi-session days can
  * be introduced later by passing an explicit SessionId from the client/program layer.
  */
 function _resolveWorkoutSessionId(userSheet, date) {
+  _runWorkoutV3LazyMigrations(userSheet);
+
   const sessionSheet = _getOrCreateWorkoutSessionsSheet(userSheet);
   const row = _findWorkoutSessionRowByDate(sessionSheet, date);
   if (row !== -1) {
