@@ -279,49 +279,69 @@ function _checkPhotoReminder(spreadsheet) {
  */
 function _clearTodaysLog(sheet, date) {
   const adminComments = new Map();
-  const data = sheet.getDataRange().getValues();
   const targetDate = new Date(date).setHours(0, 0, 0, 0);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return adminComments;
+
+  const collectBlock = function (data, sheetStartRow) {
+    let rowCount = 0;
+    let foundBoundary = false;
+    for (let i = 0; i < data.length; i++) {
+      const rowDate = data[i][0];
+      if (i > 0 && rowDate instanceof Date && new Date(rowDate).setHours(0, 0, 0, 0) !== targetDate) {
+        foundBoundary = true;
+        break;
+      }
+      const motion = data[i][1];
+      const adminComment = data[i][8];
+      if (motion && adminComment) adminComments.set(motion, adminComment);
+      rowCount += 1;
+    }
+    return { startRow: sheetStartRow, rowCount: rowCount, foundBoundary: foundBoundary };
+  };
+
+  // Normal path: WorkoutLog is newest-first, so today's block starts at row 2.
+  // 120 rows is intentionally far above a normal single workout; if a workout
+  // ever exceeds the window, fall back to the exhaustive legacy scan below.
+  const fastCount = Math.min(lastRow - 1, 120);
+  const topData = sheet.getRange(2, 1, fastCount, 9).getValues();
+  const firstDate = topData.length ? topData[0][0] : null;
+  if (firstDate instanceof Date && new Date(firstDate).setHours(0, 0, 0, 0) === targetDate) {
+    const block = collectBlock(topData, 2);
+    if (block.foundBoundary || fastCount === lastRow - 1) {
+      if (block.rowCount > 0) sheet.deleteRows(block.startRow, block.rowCount);
+      return adminComments;
+    }
+    adminComments.clear();
+  }
+
+  // Historical/back-dated or unexpectedly large workouts keep the previous
+  // exhaustive behavior so correctness does not depend on the fast-path layout.
+  const data = sheet.getDataRange().getValues();
   let startRowIndex = -1;
   let rowCount = 0;
 
   for (let i = 1; i < data.length; i++) {
-    if (data[i][0] instanceof Date && (new Date(data[i][0]).setHours(0, 0, 0, 0) === targetDate)) {
+    if (data[i][0] instanceof Date && new Date(data[i][0]).setHours(0, 0, 0, 0) === targetDate) {
       startRowIndex = i;
       rowCount = 1;
-      
-      // 遍歷當天的所有記錄
       for (let j = i; j < data.length; j++) {
         const rowDate = data[j][0];
-        // 如果遇到下一個不同日期，就停止
-        if (rowDate instanceof Date && (new Date(rowDate).setHours(0,0,0,0) !== targetDate) && rowDate !== '') {
-          break;
-        }
-        
+        if (rowDate instanceof Date && new Date(rowDate).setHours(0, 0, 0, 0) !== targetDate && rowDate !== '') break;
         const motion = data[j][1];
-        const adminComment = data[j][8]; // 第 9 欄 (索引 8) 是指導建議
-
-        // 如果有動作名稱和評論，就存起來
-        if (motion && adminComment) {
-          adminComments.set(motion, adminComment);
-        }
-
-        // 如果這是當天的最後一筆紀錄，也要正確計算 rowCount
-        if (j + 1 >= data.length || (data[j+1][0] instanceof Date && data[j+1][0] !== '')) {
-           rowCount = j - i + 1;
-           break;
+        const adminComment = data[j][8];
+        if (motion && adminComment) adminComments.set(motion, adminComment);
+        if (j + 1 >= data.length || (data[j + 1][0] instanceof Date && data[j + 1][0] !== '')) {
+          rowCount = j - i + 1;
+          break;
         }
       }
       break;
     }
   }
 
-  if (startRowIndex !== -1) {
-    Logger.log(`正在為日期 ${new Date(date).toLocaleDateString()} 從第 ${startRowIndex + 1} 行開始刪除 ${rowCount} 行`);
-    sheet.deleteRows(startRowIndex + 1, rowCount);
-  }
-  
-  Logger.log('保留的管理員評論:', adminComments);
-  return adminComments; // 回傳儲存的評論
+  if (startRowIndex !== -1) sheet.deleteRows(startRowIndex + 1, rowCount);
+  return adminComments;
 }
 
 /**
