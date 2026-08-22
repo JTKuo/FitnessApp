@@ -722,7 +722,7 @@
             <div class="workout-card-summary mb-3">
                 <p class="js-last-performance min-w-0 truncate text-sm text-yellow-300/80">查詢中...</p>
                 <div class="flex flex-shrink-0 items-baseline gap-1.5">
-                    <span class="text-[11px] text-gray-500">容量</span>
+                    <span class="js-volume-label text-[11px] text-gray-500">容量</span>
                     <p class="js-volume-display text-base font-semibold text-gray-100">0 公斤</p>
                 </div>
             </div>
@@ -762,7 +762,7 @@
                 </button>
             </div>
 
-            <div class="workout-set-inputs">
+            <div class="js-weight-reps-inputs workout-set-inputs">
                 <div class="workout-number-field workout-weight-field">
                     <input type="number" min="0" class="js-weight-input workout-set-input" aria-label="重量">
                     <select class="js-unit-select workout-unit-select" aria-label="重量單位">
@@ -776,6 +776,13 @@
                 <div class="workout-number-field workout-reps-field">
                     <input type="number" min="0" class="js-reps-input workout-set-input" aria-label="次數">
                     <span class="workout-field-suffix">次</span>
+                </div>
+            </div>
+
+            <div class="js-duration-inputs workout-set-inputs workout-duration-inputs hidden">
+                <div class="workout-number-field workout-duration-field">
+                    <input type="number" min="1" step="1" class="js-duration-input workout-set-input" aria-label="秒數">
+                    <span class="workout-field-suffix">秒</span>
                 </div>
             </div>
 

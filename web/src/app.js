@@ -33,7 +33,10 @@ export const app = {
                 this.workoutDraft.init({
                     getCurrentUser: () => this.state.user.currentUser,
                     onRestored: () => {
+                        this.methods.applyTrackingMetadataToWorkout();
                         this.methods.resizeWorkoutNotes();
+                        document.querySelectorAll('#workout-list .card').forEach((card) => this.methods.calculateVolume(card));
+                        this.methods.updateDailyTotalVolume();
                         this.ui.showToast('已恢復未完成的訓練草稿。');
                     },
                     recalculateVolumes: () => {
@@ -48,7 +51,7 @@ export const app = {
                     getCurrentUser: () => this.state.user.currentUser,
                     defaultRestSeconds: APP_CONSTANTS.WORKOUT.DEFAULT_REST_TIME,
                     onFinished: () => this.ui.showToast('休息結束！'),
-                    onInvalidComplete: () => this.ui.showToast('請先輸入這一組的重量或次數。', 'error')
+                    onInvalidComplete: () => this.ui.showToast('請先輸入這一組的訓練數值。', 'error')
                 });
 
                 this.workoutNumericInput.init();
@@ -73,7 +76,7 @@ export const app = {
                         throw new Error(data.error || "後端伺服器未返回有效的初始資料。");
                     }
 
-                    const { profile, allUsers, templates, exerciseNames } = data;
+                    const { profile, allUsers, templates, exerciseNames, exerciseCatalog = [] } = data;
 
                     // 🆕 使用新的結構化狀態
                     this.state.user.currentUser = profile.email;
@@ -83,6 +86,8 @@ export const app = {
                     this.state.ui.shouldShowReminder = profile.shouldShowReminder;
                     this.state.cache.workoutTemplates = templates;
                     this.state.cache.exerciseNameList = exerciseNames;
+                    this.state.cache.exerciseCatalog = exerciseCatalog;
+                    this.state.classify.catalog = exerciseCatalog;
 
                     this.ui.populateProfileData(profile.profileData);
                     this.methods.loadInBodyRecords();

@@ -19,6 +19,7 @@ export const initialState = {
                 cache: {
                     workoutTemplates: {},
                     exerciseNameList: [],
+                    exerciseCatalog: [],
                     analysisData: null,
                     prData: null,
                     photoHistory: []

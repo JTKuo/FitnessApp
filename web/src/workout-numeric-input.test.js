@@ -40,4 +40,10 @@ describe('workout numeric input helpers', () => {
     expect(appendDigit('999', '9', 'reps')).toBe('999');
     expect(appendDigit('1000', '1', 'weight')).toBe('1000');
   });
+
+  it('duration 使用整數秒與秒數快捷調整', () => {
+    expect(appendDecimal('45', 'duration')).toBe('45');
+    expect(adjustedValue('45', 30, 'duration')).toBe('75');
+    expect(formatNumericValue(90.7, 'duration')).toBe('91');
+  });
 });

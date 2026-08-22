@@ -651,3 +651,17 @@
         transition: none;
     }
 }
+
+
+/* --- Duration Tracking v1 --- */
+.workout-duration-inputs {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.workout-duration-field {
+    width: 100%;
+}
+
+.workout-duration-field .workout-set-input {
+    text-align: center;
+}

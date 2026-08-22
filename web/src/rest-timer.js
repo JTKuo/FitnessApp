@@ -154,7 +154,8 @@ function ensureCompleteButtons() {
 function setHasWorkoutData(setRow) {
   const weight = parseFloat(setRow.querySelector('.js-weight-input')?.value || '0') || 0;
   const reps = parseInt(setRow.querySelector('.js-reps-input')?.value || '0', 10) || 0;
-  return weight > 0 || reps > 0;
+  const duration = parseInt(setRow.querySelector('.js-duration-input')?.value || '0', 10) || 0;
+  return weight > 0 || reps > 0 || duration > 0;
 }
 
 function finishUserSwitchWatch(targetEmail, previousEmail, startedAt) {

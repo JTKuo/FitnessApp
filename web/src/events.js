@@ -238,7 +238,7 @@ export const events = {
                         app.methods.resizeWorkoutNote(target);
                     }
 
-                    if (target.matches('.js-weight-input, .js-reps-input, .js-unit-select')) {
+                    if (target.matches('.js-weight-input, .js-reps-input, .js-unit-select, .js-duration-input')) {
                         const exerciseCard = target.closest('.card');
                         if (exerciseCard) {
                             app.methods.calculateVolume(exerciseCard);

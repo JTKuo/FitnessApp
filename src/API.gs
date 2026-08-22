@@ -213,22 +213,9 @@ function getInitialData(authedEmail, userEmail = null) {
         Logger.log(`使用者 ${targetEmail} 的 Templates 工作表中沒有找到資料。`); 
     }
 
-    // --- 任務 4: 獲取目標使用者的不重複動作名稱 (使用 WorkoutLog) ---
-    Logger.log(`正在為 ${targetEmail} 從 WorkoutLog 獲取不重複的動作名稱...`);
-    const exerciseNames = new Set(); 
-    const logSheet = userSheet.getSheetByName(CONSTANTS.SHEETS.WORKOUT_LOG); 
-    if (logSheet && logSheet.getLastRow() > 1) { 
-        // 只讀取 B 欄 (動作名稱)
-        const motionData = logSheet.getRange(2, 2, logSheet.getLastRow() - 1, 1).getValues(); 
-        motionData.forEach(row => { 
-            if (row[0] && typeof row[0] === 'string' && row[0].trim() !== '' && row[0] !== '動作總結' && row[0] !== '本日總結') { 
-              exerciseNames.add(row[0].trim()); // 加入 Set 自動去重
-            }
-        });
-        Logger.log(`為 ${targetEmail} 在 WorkoutLog 中找到 ${exerciseNames.size} 個不重複的動作名稱。`);
-    } else {
-       Logger.log(`使用者 ${targetEmail} 的 WorkoutLog 工作表中沒有找到資料或不存在。`);
-    }
+    // --- 任務 4: 取得動作目錄與 runtime metadata（ExerciseMaster + WorkoutLog 聯集） ---
+    const exerciseCatalog = _buildExerciseCatalogForUserSheet(userSheet);
+    const exerciseNames = exerciseCatalog.map(function (item) { return item.motion; });
 
     // --- 將所有結果打包回傳 ---
     Logger.log(`為 ${targetEmail} 準備回傳所有初始資料。`);
@@ -236,7 +223,8 @@ function getInitialData(authedEmail, userEmail = null) {
       profile: profile,         // 目標使用者的 Profile
       allUsers: allUsers,       // 所有使用者列表 (僅 admin 有效)
       templates: templates,     // 目標使用者的範本
-      exerciseNames: Array.from(exerciseNames) // 目標使用者的動作名稱列表
+      exerciseNames: exerciseNames, // 目標使用者的動作名稱列表
+      exerciseCatalog: exerciseCatalog // ExerciseMaster V2 runtime metadata
     };
 
   } catch (e) {
@@ -829,18 +817,34 @@ function getLatestPerformance(authedEmail, exerciseName, userEmail = null) {
 
     const indices = _getHeaderIndices(logSheet);
     const data = logSheet.getDataRange().getValues();
+    const headers = data.length > 0 ? data[0].map(function (value) { return String(value || '').trim(); }) : [];
+    const trackingTypeIdx = headers.indexOf('TrackingType');
+    const durationIdx = headers.indexOf('DurationSec');
     
-    // 從資料的最後一筆開始往回找，效率較高
-    for (let i = 1; i < data.length; i++) { // <-- i = 1, 往上加
+    // WorkoutLog is newest-first. Return the first matching set with usable data.
+    for (let i = 1; i < data.length; i++) {
       const row = data[i];
       const motion = row[indices[CONSTANTS.HEADERS.MOTION]];
+      if (motion !== exerciseName) continue;
+
+      const trackingType = trackingTypeIdx >= 0
+        ? _normalizeWorkoutTrackingType(row[trackingTypeIdx])
+        : 'weight_reps';
+
+      if (trackingType === 'duration' && durationIdx >= 0) {
+        const durationSec = Number(row[durationIdx]);
+        if (isFinite(durationSec) && durationSec > 0) {
+          return { tracking_type: 'duration', duration_sec: Math.round(durationSec) };
+        }
+        continue;
+      }
+
       const reps = row[indices[CONSTANTS.HEADERS.REPS]];
       const weight_kg = row[indices[CONSTANTS.HEADERS.WEIGHT_KG]];
-      
-      if (motion === exerciseName && reps && weight_kg) {
-        // 【修改】 計算磅值並回傳物件
+      if (reps && weight_kg) {
         const weight_lbs = parseFloat((weight_kg * KG_TO_LB).toFixed(2));
         return {
+          tracking_type: 'weight_reps',
           weight_kg: weight_kg,
           weight_lbs: weight_lbs,
           reps: reps
@@ -1025,6 +1029,9 @@ function processWorkoutForPRs(authedEmail, workoutData) {
 
     // --- 遍歷所有組數，更新數據並記錄最佳 PR ---
     workoutData.forEach(setData => {
+      const trackingType = String(setData.tracking_type || 'weight_reps').trim().toLowerCase();
+      if (trackingType !== 'weight_reps') return;
+
       const motion = setData.motion;
       const reps = parseInt(setData.reps);
       const weight = parseFloat(setData.weight_in_kg);
@@ -1522,42 +1529,59 @@ function _clearClassificationCaches(email, spreadsheetId) {
 }
 
 /**
- * (API) 動作目錄：聯集 WorkoutLog 出現過的動作與 ExerciseMaster 既有列。
- * 確保「練過但從未分類」的動作一定出現在編輯器中。
- * @returns {Array<{motion: string, category: string, tags: string[]}>}
+ * Build the exercise catalog from an already-open user spreadsheet.
+ * Runtime fields are additive: existing classification callers can keep using
+ * motion/category/tags while Workout UI can opt into TrackingType metadata.
  */
-function getExerciseCatalog(authedEmail, requestedEmail) {
-  const target = _resolveTarget(authedEmail, requestedEmail);
-  const userSheet = _getUserSheet(target.targetEmail, false);
+function _buildExerciseCatalogForUserSheet(userSheet) {
   if (!userSheet) return [];
 
-  const infoMap = _getExerciseInfoMap(userSheet);
+  const metadataMap = _getExerciseMetadataMap(userSheet);
   const motions = new Set();
-  infoMap.forEach(function (_info, motion) { motions.add(motion); });
+  metadataMap.forEach(function (_info, motion) { motions.add(motion); });
 
-  // 併入 WorkoutLog 中實際練過的動作
+  // Include motions that exist only in WorkoutLog. Read only the Motion column.
   const logSheet = userSheet.getSheetByName(CONSTANTS.SHEETS.WORKOUT_LOG);
   if (logSheet && logSheet.getLastRow() > 1) {
     const indices = _getHeaderIndices(logSheet);
     const motionIdx = indices[CONSTANTS.HEADERS.MOTION];
-    const rows = logSheet.getRange(2, 1, logSheet.getLastRow() - 1, logSheet.getLastColumn()).getValues();
-    rows.forEach(function (row) {
-      const motion = String(row[motionIdx]).trim();
-      if (motion && motion !== '本日總結' && motion !== '動作總結') motions.add(motion);
-    });
+    if (motionIdx !== undefined && motionIdx !== null) {
+      const motionRows = logSheet.getRange(2, motionIdx + 1, logSheet.getLastRow() - 1, 1).getValues();
+      motionRows.forEach(function (row) {
+        const motion = String(row[0] || '').trim();
+        if (motion && motion !== '本日總結' && motion !== '動作總結') motions.add(motion);
+      });
+    }
   }
 
   const catalog = [];
   motions.forEach(function (motion) {
-    const info = infoMap.get(motion);
+    const info = metadataMap.get(motion) || null;
     catalog.push({
       motion: motion,
       category: info ? info.category : '',
-      tags: info ? info.tags : []
+      tags: info ? info.tags : [],
+      exerciseId: info ? info.exerciseId : '',
+      trackingType: info ? _normalizeWorkoutTrackingType(info.trackingType) : 'weight_reps',
+      loadMode: info ? info.loadMode : 'total',
+      laterality: info ? info.laterality : 'bilateral',
+      defaultRestSec: info ? info.defaultRestSec : 30,
+      demoMedia: info ? info.demoMedia : '',
+      active: info ? info.active : true
     });
   });
+
   catalog.sort(function (a, b) { return a.motion.localeCompare(b.motion, 'zh-Hant'); });
   return catalog;
+}
+
+/**
+ * (API) 動作目錄：ExerciseMaster metadata + WorkoutLog motion union.
+ */
+function getExerciseCatalog(authedEmail, requestedEmail) {
+  const target = _resolveTarget(authedEmail, requestedEmail);
+  const userSheet = _getUserSheet(target.targetEmail, false);
+  return _buildExerciseCatalogForUserSheet(userSheet);
 }
 
 /**
