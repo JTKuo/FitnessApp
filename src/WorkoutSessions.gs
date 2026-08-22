@@ -118,37 +118,84 @@ function _runWorkoutV3LazyMigrations(userSheet) {
  * Re-saving the same day therefore reuses its SessionId. Multi-session days can
  * be introduced later by passing an explicit SessionId from the client/program layer.
  */
-function _resolveWorkoutSessionId(userSheet, date) {
-  _runWorkoutV3LazyMigrations(userSheet);
-
+function _resolveWorkoutSessionContext(userSheet, date) {
   const sessionSheet = _getOrCreateWorkoutSessionsSheet(userSheet);
-  const row = _findWorkoutSessionRowByDate(sessionSheet, date);
-  if (row !== -1) {
-    const headers = sessionSheet.getRange(1, 1, 1, sessionSheet.getLastColumn()).getValues()[0];
-    const idIndex = headers.indexOf('SessionId');
-    const existingId = idIndex === -1 ? '' : sessionSheet.getRange(row, idIndex + 1).getValue();
-    if (existingId) return String(existingId);
+  const headers = sessionSheet.getRange(1, 1, 1, sessionSheet.getLastColumn()).getValues()[0];
+  const dateIndex = headers.indexOf('Date');
+  const idIndex = headers.indexOf('SessionId');
+  const targetKey = _dateKey(date);
+
+  let rowNumber = -1;
+  let sessionId = '';
+
+  if (targetKey && sessionSheet.getLastRow() >= 2 && dateIndex !== -1) {
+    const firstIndex = Math.min(dateIndex, idIndex === -1 ? dateIndex : idIndex);
+    const lastIndex = Math.max(dateIndex, idIndex === -1 ? dateIndex : idIndex);
+    const rowCount = sessionSheet.getLastRow() - 1;
+    const values = sessionSheet
+      .getRange(2, firstIndex + 1, rowCount, lastIndex - firstIndex + 1)
+      .getValues();
+
+    for (let i = 0; i < values.length; i++) {
+      const rowDate = values[i][dateIndex - firstIndex];
+      if (!(rowDate instanceof Date) || _dateKey(rowDate) !== targetKey) continue;
+
+      rowNumber = i + 2;
+      if (idIndex !== -1) {
+        sessionId = String(values[i][idIndex - firstIndex] || '');
+      }
+      break;
+    }
   }
-  return _generateWorkoutSessionId(date);
+
+  if (!sessionId) sessionId = _generateWorkoutSessionId(date);
+
+  return {
+    sheet: sessionSheet,
+    headers: headers,
+    rowNumber: rowNumber,
+    sessionId: sessionId,
+    dateKey: targetKey
+  };
+}
+
+function _resolveWorkoutSessionId(userSheet, date) {
+  return _resolveWorkoutSessionContext(userSheet, date).sessionId;
 }
 
 /**
  * Upsert only fields owned by the current logger. Reserved Program/StartedAt/etc.
  * values are preserved if they are filled by future features.
  */
-function _upsertWorkoutSession(userSheet, sessionData) {
-  const sheet = _getOrCreateWorkoutSessionsSheet(userSheet);
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+function _upsertWorkoutSession(userSheet, sessionData, sessionContext) {
+  const canReuseContext = !!(
+    sessionContext &&
+    sessionContext.sheet &&
+    sessionContext.headers &&
+    String(sessionContext.sessionId || '') === String(sessionData.sessionId || '')
+  );
 
-  let rowNumber = _findWorkoutSessionRowById(sheet, sessionData.sessionId);
-  if (rowNumber === -1) rowNumber = _findWorkoutSessionRowByDate(sheet, sessionData.date);
+  const sheet = canReuseContext ? sessionContext.sheet : _getOrCreateWorkoutSessionsSheet(userSheet);
+  const headers = canReuseContext
+    ? sessionContext.headers
+    : sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
 
+  let rowNumber = canReuseContext ? sessionContext.rowNumber : -1;
+  if (!canReuseContext) {
+    rowNumber = _findWorkoutSessionRowById(sheet, sessionData.sessionId);
+    if (rowNumber === -1) rowNumber = _findWorkoutSessionRowByDate(sheet, sessionData.date);
+  }
+
+  const isNewRow = rowNumber === -1;
   const existing = {};
-  if (rowNumber !== -1) {
+  let dateChanged = false;
+
+  if (!isNewRow) {
     const rowValues = sheet.getRange(rowNumber, 1, 1, headers.length).getValues()[0];
     headers.forEach(function (header, index) {
       existing[header] = rowValues[index];
     });
+    dateChanged = _dateKey(existing.Date) !== _dateKey(sessionData.date);
   }
 
   const merged = Object.assign({}, existing, {
@@ -165,16 +212,21 @@ function _upsertWorkoutSession(userSheet, sessionData) {
     return merged[header] !== undefined && merged[header] !== null ? merged[header] : '';
   });
 
-  if (rowNumber === -1) {
+  if (isNewRow) {
     sheet.appendRow(newRow);
   } else {
     sheet.getRange(rowNumber, 1, 1, newRow.length).setValues([newRow]);
   }
 
-  // Keep newest training date at the top, matching the rest of the user's data sheets.
-  if (sheet.getLastRow() > 2) {
+  // Existing same-day sessions are already in the correct position. Sorting the
+  // entire sheet on every re-save is pure latency, so only sort when row order
+  // can actually change (new session or date change).
+  if ((isNewRow || dateChanged) && sheet.getLastRow() > 2) {
     const dateColumn = headers.indexOf('Date') + 1;
-    if (dateColumn > 0) sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).sort({ column: dateColumn, ascending: false });
+    if (dateColumn > 0) {
+      sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn())
+        .sort({ column: dateColumn, ascending: false });
+    }
   }
 
   return sessionData.sessionId;

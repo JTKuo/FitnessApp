@@ -337,9 +337,10 @@ function _writeNewLog(sheet, date, workoutData, savedAdminComments) {
   const allRowsToWrite = [];
   const exercises = {};
   const userSheet = sheet.getParent();
-  const sessionId = _traceWorkoutSaveStep('session.resolve', function () {
-    return _resolveWorkoutSessionId(userSheet, date);
+  const sessionContext = _traceWorkoutSaveStep('session.resolve', function () {
+    return _resolveWorkoutSessionContext(userSheet, date);
   });
+  const sessionId = sessionContext.sessionId;
   const sessionNote = workoutData.length > 0 ? String(workoutData[0].session_note || '') : '';
 
   // Backend-only V3 schema rollout. Reading ExerciseMaster here is best-effort and
@@ -417,12 +418,12 @@ function _writeNewLog(sheet, date, workoutData, savedAdminComments) {
 
     _traceWorkoutSaveStep('session.upsert', function () {
       _upsertWorkoutSession(userSheet, {
-      sessionId: sessionId,
-      date: date,
-      sessionNote: sessionNote,
-      totalVolume: dailyTotalVolume,
+        sessionId: sessionId,
+        date: date,
+        sessionNote: sessionNote,
+        totalVolume: dailyTotalVolume,
         workingSets: workingSetCount
-      });
+      }, sessionContext);
     });
   }
 }
