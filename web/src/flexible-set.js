@@ -11,7 +11,9 @@ let initialized = false;
 let getCurrentUser = () => null;
 let getExerciseCatalog = async () => [];
 let catalogOwner = '';
+let catalogLoadedOwner = '';
 let catalogPromise = null;
+let catalogRequestId = 0;
 let catalogMap = new Map();
 
 function normalizeEmail(value) {
@@ -91,7 +93,7 @@ function createDurationControl(row) {
   let durationGroup = grid.querySelector('.js-duration-group');
   if (!durationGroup) {
     durationGroup = document.createElement('div');
-    durationGroup.className = 'js-duration-group hidden col-span-2 flex items-center gap-2';
+    durationGroup.className = 'js-duration-group hidden col-span-full flex items-center gap-2';
     durationGroup.innerHTML = `
       <input type="number" min="0" step="1" class="w-full rounded-md p-2 text-center js-duration-input" aria-label="持續秒數">
       <span class="text-gray-400 text-sm whitespace-nowrap">秒</span>
@@ -196,8 +198,15 @@ function enrichWorkoutData(legacyData, descriptors, dateToSave) {
       exercise_id: descriptor.exerciseId || '',
     };
 
+    const queue = legacyQueues.get(descriptorKey(descriptor));
+
     if (common.tracking_type === 'duration') {
+      // If an exercise was changed from weight/reps to duration, consume any stale hidden legacy row
+      // so it cannot be re-added by the defensive fallback below.
+      const staleLegacy = queue?.shift();
+      if (staleLegacy) usedLegacy.add(staleLegacy);
       if (!(descriptor.durationSec > 0)) return;
+
       result.push({
         date: dateToSave,
         motion: descriptor.motion,
@@ -212,7 +221,6 @@ function enrichWorkoutData(legacyData, descriptors, dateToSave) {
       return;
     }
 
-    const queue = legacyQueues.get(descriptorKey(descriptor));
     const legacy = queue?.shift();
     if (!legacy) return;
     usedLegacy.add(legacy);
@@ -240,36 +248,42 @@ function enrichWorkoutData(legacyData, descriptors, dateToSave) {
 async function loadCatalog(email) {
   const owner = normalizeEmail(email);
   if (!owner) return [];
-  if (owner === catalogOwner && catalogMap.size > 0) return [...catalogMap.values()];
+  if (owner === catalogLoadedOwner) return [...catalogMap.values()];
   if (catalogPromise && owner === catalogOwner) return catalogPromise;
 
+  const requestId = ++catalogRequestId;
   catalogOwner = owner;
   catalogMap = new Map();
-  catalogPromise = Promise.resolve(getExerciseCatalog(email))
+
+  const request = Promise.resolve(getExerciseCatalog(email))
     .then((items) => {
-      if (normalizeEmail(getCurrentUser()) !== owner) return [];
+      if (requestId !== catalogRequestId || normalizeEmail(getCurrentUser()) !== owner) return [];
       (Array.isArray(items) ? items : []).forEach((item) => {
         const normalized = normalizeMetadata(item);
         if (normalized.motion) catalogMap.set(normalized.motion, normalized);
       });
+      catalogLoadedOwner = owner;
       decorateAll();
       return [...catalogMap.values()];
     })
     .catch((error) => {
-      console.warn('[FlexibleSet] 無法載入 ExerciseMaster metadata，暫用 weight/reps 預設。', error);
+      if (requestId === catalogRequestId) {
+        console.warn('[FlexibleSet] 無法載入 ExerciseMaster metadata，暫用 weight/reps 預設。', error);
+      }
       return [];
     })
     .finally(() => {
-      catalogPromise = null;
+      if (catalogPromise === request) catalogPromise = null;
     });
 
-  return catalogPromise;
+  catalogPromise = request;
+  return request;
 }
 
 function ensureCurrentCatalog() {
   const current = normalizeEmail(getCurrentUser());
   if (!current) return;
-  if (current !== catalogOwner || catalogMap.size === 0) loadCatalog(current);
+  if (current !== catalogLoadedOwner) loadCatalog(current);
 }
 
 export const flexibleSet = {
