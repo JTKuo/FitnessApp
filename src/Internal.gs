@@ -339,69 +339,76 @@ function _writeNewLog(sheet, date, workoutData, savedAdminComments) {
   const userSheet = sheet.getParent();
   const sessionId = _resolveWorkoutSessionId(userSheet, date);
   const sessionNote = workoutData.length > 0 ? String(workoutData[0].session_note || '') : '';
-  const sessionIdColumn = _ensureWorkoutLogSessionIdHeader(sheet); // 1-based
-  const totalColumns = Math.max(9, sessionIdColumn);
 
-  const withSessionId = function (baseRow) {
-    const row = baseRow.slice();
-    while (row.length < totalColumns) row.push('');
-    row[sessionIdColumn - 1] = sessionId;
-    return row;
+  // Backend-only V3 schema rollout. Reading ExerciseMaster here is best-effort and
+  // only supplies ExerciseId; old clients still default to legacy set semantics.
+  let exerciseMetadataMap = new Map();
+  try {
+    exerciseMetadataMap = _getExerciseMetadataMap(userSheet);
+  } catch (e) {
+    Logger.log('WorkoutLog V3 metadata read failed; save continues without ExerciseId: ' + e.message);
+  }
+
+  const headerMap = _ensureWorkoutLogV3SetHeaders(sheet);
+  const totalColumns = sheet.getLastColumn();
+
+  const withV3Fields = function (baseRow, setFields) {
+    return _withWorkoutLogV3SetFields(baseRow, totalColumns, headerMap, sessionId, setFields);
   };
-  
-  workoutData.forEach(set => {
-      if (!exercises[set.motion]) {
-        exercises[set.motion] = [];
-      }
-      exercises[set.motion].push(set);
+
+  workoutData.forEach(function (set) {
+    if (!exercises[set.motion]) exercises[set.motion] = [];
+    exercises[set.motion].push(set);
   });
-  
-  allRowsToWrite.push(withSessionId([date, '', '', '', '', '', '', '', ''])); // 日期列
+
+  allRowsToWrite.push(withV3Fields([date, '', '', '', '', '', '', '', ''], null));
 
   let dailyTotalVolume = 0;
+  let workingSetCount = 0;
+
   for (const motionName in exercises) {
     const sets = exercises[motionName];
+    const exerciseMetadata = exerciseMetadataMap.get(motionName) || null;
     let exerciseTotalVolume = 0;
-    
     const adminCommentForMotion = savedAdminComments.get(motionName) || '';
 
-    sets.forEach((set, index) => {
+    sets.forEach(function (set, index) {
+      const setFields = _resolveWorkoutLogV3SetFields(set, exerciseMetadata);
+      if (setFields.setType === 'working') workingSetCount += 1;
+
+      // Keep the legacy calculations byte-for-byte equivalent for old payloads.
       const weight_kg = set.weight_in_kg;
-      const weight_lbs = (set.unit === '磅') ? set.weight : parseFloat((set.weight * KG_TO_LB).toFixed(2));
+      const weight_lbs = (set.unit === '磅')
+        ? set.weight
+        : parseFloat((set.weight * KG_TO_LB).toFixed(2));
       const volume = weight_kg * set.reps;
       exerciseTotalVolume += volume;
-      
-      const note = (index === 0) ? set.note : '';
-      const adminComment = (index === 0) ? adminCommentForMotion : '';
 
-      const rowData = withSessionId(['', motionName, index + 1, set.reps, weight_kg, weight_lbs, volume, note, adminComment]);
-      allRowsToWrite.push(rowData);
+      const note = index === 0 ? set.note : '';
+      const adminComment = index === 0 ? adminCommentForMotion : '';
+      const legacyRow = ['', motionName, index + 1, set.reps, weight_kg, weight_lbs, volume, note, adminComment];
+      allRowsToWrite.push(withV3Fields(legacyRow, setFields));
     });
-    
-    // 舊 summary rows 暫時保留，待所有讀取端完成 V3 migration 後再停止產生。
-    allRowsToWrite.push(withSessionId(['', '', '', '', '', '動作總結', exerciseTotalVolume, '', '']));
+
+    allRowsToWrite.push(withV3Fields(['', '', '', '', '', '動作總結', exerciseTotalVolume, '', ''], null));
     dailyTotalVolume += exerciseTotalVolume;
   }
 
-  allRowsToWrite.push(withSessionId(['', '', '', '', '', '本日總結', dailyTotalVolume, '', '']));
-  
+  allRowsToWrite.push(withV3Fields(['', '', '', '', '', '本日總結', dailyTotalVolume, '', ''], null));
+
   if (allRowsToWrite.length > 0) {
     const numRows = allRowsToWrite.length;
     const numCols = allRowsToWrite[0].length;
-
     const insertionRow = _findInsertionRow(sheet, date);
     sheet.insertRows(insertionRow, numRows);
     sheet.getRange(insertionRow, 1, numRows, numCols).setValues(allRowsToWrite);
 
-    // WorkoutLog 成功寫入後才 materialize session summary。
-    // 若此步驟失敗，整個 API 回錯；下一次重送仍會先清除同日 log，因此不會 duplicate。
     _upsertWorkoutSession(userSheet, {
       sessionId: sessionId,
       date: date,
       sessionNote: sessionNote,
       totalVolume: dailyTotalVolume,
-      // SetType 尚未加入前，所有目前可儲存的 set 都視為 working set。
-      workingSets: workoutData.length
+      workingSets: workingSetCount
     });
   }
 }
