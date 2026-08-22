@@ -708,66 +708,88 @@
     </div>
 
     <template id="exercise-card-template">
-          <div class="card p-4 rounded-lg">
-              <div class="flex justify-between items-center border-b border-yellow-500/30 pb-2 mb-3">
-                  <div class="flex items-center gap-2">
-                      <ion-icon name="menu-outline" class="js-drag-handle text-2xl text-gray-500 cursor-grab"></ion-icon>
-                      <h3 class="text-lg font-semibold text-yellow-400"></h3>
-                  </div>
-                  <button class="js-delete-exercise p-1 text-red-500 hover:text-red-400 transition-colors duration-200">
-                      <ion-icon name="close-circle-outline" class="text-2xl pointer-events-none"></ion-icon>
-                  </button>
-              </div>
-              
-              <p class="text-sm text-yellow-300/80 mb-2 js-last-performance">查詢中...</p>
-              
-              <div class="flex justify-end items-baseline space-x-2 -mt-2 mb-2">
-                  <span class="text-xs text-gray-400">總容量:</span>
-                  <p class="text-xl font-bold text-white js-volume-display">0 公斤</p>
-              </div>
+        <div class="card workout-exercise-card p-4 rounded-2xl">
+            <div class="flex items-center justify-between gap-3 mb-2">
+                <div class="flex min-w-0 items-center gap-2">
+                    <ion-icon name="menu-outline" class="js-drag-handle text-2xl text-gray-600 cursor-grab flex-shrink-0"></ion-icon>
+                    <h3 class="truncate text-lg font-semibold text-yellow-400"></h3>
+                </div>
+                <button class="js-delete-exercise workout-icon-button text-red-500/80" aria-label="刪除動作">
+                    <ion-icon name="close-outline" class="text-2xl pointer-events-none"></ion-icon>
+                </button>
+            </div>
 
-              <div class="space-y-2 mt-2 js-sets-container">
-                  </div>
-        
-        <div class="mt-3">
-          <textarea class="js-exercise-note w-full rounded-md p-2 text-sm" rows="2" placeholder="為這個動作新增備註..."></textarea>
-        </div>        
-              <div class="grid grid-cols-3 gap-2 mt-3">                  
-                  <button class="w-full text-sm bg-yellow-600/80 hover:bg-yellow-500/80 border border-yellow-700 rounded-md p-1 js-start-timer">開始休息</button>
-                  <button class="w-full text-sm bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-md p-1 js-copy-set">複製上一組</button>
-                  <button class="w-full text-sm bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-md p-1 js-add-set">+ 新增組數</button>
-              </div>
-          </div>
-      </template>
+            <div class="workout-card-summary mb-3">
+                <p class="js-last-performance min-w-0 truncate text-sm text-yellow-300/80">查詢中...</p>
+                <div class="flex flex-shrink-0 items-baseline gap-1.5">
+                    <span class="text-[11px] text-gray-500">容量</span>
+                    <p class="js-volume-display text-base font-semibold text-gray-100">0 公斤</p>
+                </div>
+            </div>
 
-      <template id="set-row-template">
-          <div class="flex items-center space-x-2 js-set-row relative">
-              <span class="js-pr-badge hidden absolute -left-1 -top-1 bg-yellow-400 text-black text-xs font-bold px-2 py-0.5 rounded-full shadow-md animate-pulse"></span>              
-              <div class="w-16 flex-shrink-0 space-y-1">
-                  <span class="js-set-number block text-center text-gray-400 text-sm"></span>
-                  <select aria-label="組別類型" class="w-full rounded-md px-1 py-1 bg-black border border-yellow-500 text-[11px] text-center js-set-type-select">
-                      <option value="working">工作</option>
-                      <option value="warmup">熱身</option>
-                  </select>
-              </div>
-              <div class="flex-grow grid grid-cols-2 gap-x-2">
-                  <div class="flex items-center space-x-2">
-                      <input type="number" min="0" class="w-full rounded-md p-2 text-center js-weight-input">
-                      <select class="rounded-md p-2 bg-black border border-yellow-500 text-sm appearance-none text-center js-unit-select">
-                          <option>公斤</option>
-                          <option>磅</option>
-                      </select>
-                  </div>
-                  <div class="flex items-center space-x-2">
-                      <input type="number" min="0" class="w-full rounded-md p-2 text-center js-reps-input">
-                      <span class="text-gray-400 text-lg">次</span>
-                  </div>
-              </div>
-              <button class="js-delete-set p-1 text-gray-500 hover:text-red-500 transition-colors duration-200">
-                  <ion-icon name="trash-outline" class="text-xl pointer-events-none"></ion-icon>
-              </button>
-          </div>
-      </template>
+            <div class="js-sets-container space-y-1"></div>
+
+            <div class="mt-3">
+                <textarea class="js-exercise-note workout-note w-full resize-none rounded-xl px-3 py-2 text-sm" rows="2" placeholder="備註（選填）"></textarea>
+            </div>
+
+            <div class="workout-card-actions mt-3">
+                <button class="js-start-timer workout-action workout-action-primary" type="button">
+                    <ion-icon name="timer-outline" class="text-lg pointer-events-none"></ion-icon>
+                    <span>休息</span>
+                </button>
+                <button class="js-copy-set workout-action workout-action-secondary" type="button">
+                    <ion-icon name="copy-outline" class="text-lg pointer-events-none"></ion-icon>
+                    <span>複製</span>
+                </button>
+                <button class="js-add-set workout-action workout-action-secondary" type="button">
+                    <ion-icon name="add-outline" class="text-xl pointer-events-none"></ion-icon>
+                    <span>新增組</span>
+                </button>
+            </div>
+        </div>
+    </template>
+
+    <template id="set-row-template">
+        <div class="js-set-row workout-set-row relative">
+            <span class="js-pr-badge hidden absolute -left-1 -top-1 z-10 rounded-full bg-yellow-400 px-2 py-0.5 text-xs font-bold text-black shadow-md animate-pulse"></span>
+
+            <div class="workout-set-meta">
+                <span class="js-set-number workout-set-number">1</span>
+                <button type="button" class="js-set-type-toggle workout-set-type-toggle" data-set-type="working" aria-pressed="false" aria-label="目前為工作組，點擊切換為熱身組">
+                    <span class="set-type-working inline-flex items-center gap-1">
+                        <ion-icon name="ellipse-outline" class="text-xs pointer-events-none"></ion-icon>
+                        <span>工作</span>
+                    </span>
+                    <span class="set-type-warmup inline-flex items-center gap-1">
+                        <ion-icon name="flame-outline" class="text-sm pointer-events-none"></ion-icon>
+                        <span>熱身</span>
+                    </span>
+                </button>
+            </div>
+
+            <div class="workout-set-inputs">
+                <div class="workout-number-field">
+                    <input type="number" min="0" class="js-weight-input workout-set-input" aria-label="重量">
+                    <select class="js-unit-select workout-unit-select" aria-label="重量單位">
+                        <option value="公斤">kg</option>
+                        <option value="磅">lb</option>
+                    </select>
+                </div>
+
+                <span class="workout-multiply" aria-hidden="true">×</span>
+
+                <div class="workout-number-field">
+                    <input type="number" min="0" class="js-reps-input workout-set-input" aria-label="次數">
+                    <span class="workout-field-suffix">次</span>
+                </div>
+            </div>
+
+            <button class="js-delete-set workout-icon-button workout-delete-set" type="button" aria-label="刪除此組">
+                <ion-icon name="trash-outline" class="text-lg pointer-events-none"></ion-icon>
+            </button>
+        </div>
+    </template>
 
     <script type="module" src="/src/main.js"></script>
 </body>

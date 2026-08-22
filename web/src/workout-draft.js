@@ -70,7 +70,7 @@ function collectDraftPayload() {
         weight: set.querySelector('.js-weight-input')?.value || '',
         reps: set.querySelector('.js-reps-input')?.value || '',
         unit: set.querySelector('.js-unit-select')?.value || '公斤',
-        setType: normalizeSetType(set.querySelector('.js-set-type-select')?.value),
+        setType: normalizeSetType(set.querySelector('.js-set-type-toggle')?.dataset.setType),
       }));
 
       return { name, note, sets };
@@ -118,13 +118,19 @@ function createSetFragment(setData, setNumber) {
   const weightInput = fragment.querySelector('.js-weight-input');
   const repsInput = fragment.querySelector('.js-reps-input');
   const unitSelect = fragment.querySelector('.js-unit-select');
-  const setTypeSelect = fragment.querySelector('.js-set-type-select');
+  const setTypeToggle = fragment.querySelector('.js-set-type-toggle');
 
-  if (setNumberEl) setNumberEl.textContent = `SET ${setNumber}`;
+  if (setNumberEl) setNumberEl.textContent = String(setNumber);
   if (weightInput) weightInput.value = setData?.weight ?? '';
   if (repsInput) repsInput.value = setData?.reps ?? '';
   if (unitSelect) unitSelect.value = setData?.unit || '公斤';
-  if (setTypeSelect) setTypeSelect.value = normalizeSetType(setData?.setType);
+  if (setTypeToggle) {
+    const setType = normalizeSetType(setData?.setType);
+    const isWarmup = setType === 'warmup';
+    setTypeToggle.dataset.setType = setType;
+    setTypeToggle.setAttribute('aria-pressed', isWarmup ? 'true' : 'false');
+    setTypeToggle.setAttribute('aria-label', isWarmup ? '目前為熱身組，點擊切換為工作組' : '目前為工作組，點擊切換為熱身組');
+  }
 
   return fragment;
 }

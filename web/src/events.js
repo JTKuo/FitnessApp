@@ -222,8 +222,10 @@ export const events = {
                     const deleteSetButton = target.closest('.js-delete-set');
                     const deleteExerciseButton = target.closest('.js-delete-exercise');
                     const copySetButton = target.closest('.js-copy-set');
+                    const setTypeToggleButton = target.closest('.js-set-type-toggle');
 					          const startTimerButton = target.closest('.js-start-timer');
 
+                    if (setTypeToggleButton) app.methods.toggleSetType(setTypeToggleButton);
                     if (addSetButton) app.methods.addSet(exerciseCard);
                     if (deleteSetButton) app.methods.deleteSet(deleteSetButton.closest('.js-set-row'));
                     if (deleteExerciseButton) app.methods.deleteExercise(exerciseCard);
