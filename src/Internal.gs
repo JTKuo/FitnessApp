@@ -337,19 +337,25 @@ function _writeNewLog(sheet, date, workoutData, savedAdminComments) {
   const allRowsToWrite = [];
   const exercises = {};
   const userSheet = sheet.getParent();
-  const sessionId = _resolveWorkoutSessionId(userSheet, date);
+  const sessionId = _traceWorkoutSaveStep('session.resolve', function () {
+    return _resolveWorkoutSessionId(userSheet, date);
+  });
   const sessionNote = workoutData.length > 0 ? String(workoutData[0].session_note || '') : '';
 
   // Backend-only V3 schema rollout. Reading ExerciseMaster here is best-effort and
   // only supplies ExerciseId; old clients still default to legacy set semantics.
   let exerciseMetadataMap = new Map();
   try {
-    exerciseMetadataMap = _getExerciseMetadataMap(userSheet);
+    exerciseMetadataMap = _traceWorkoutSaveStep('exercise.metadata', function () {
+      return _getExerciseMetadataMap(userSheet);
+    });
   } catch (e) {
     Logger.log('WorkoutLog V3 metadata read failed; save continues without ExerciseId: ' + e.message);
   }
 
-  const headerMap = _ensureWorkoutLogV3SetHeaders(sheet);
+  const headerMap = _traceWorkoutSaveStep('log.ensureHeaders', function () {
+    return _ensureWorkoutLogV3SetHeaders(sheet);
+  });
   const totalColumns = sheet.getLastColumn();
 
   const withV3Fields = function (baseRow, setFields) {
@@ -399,16 +405,24 @@ function _writeNewLog(sheet, date, workoutData, savedAdminComments) {
   if (allRowsToWrite.length > 0) {
     const numRows = allRowsToWrite.length;
     const numCols = allRowsToWrite[0].length;
-    const insertionRow = _findInsertionRow(sheet, date);
-    sheet.insertRows(insertionRow, numRows);
-    sheet.getRange(insertionRow, 1, numRows, numCols).setValues(allRowsToWrite);
+    const insertionRow = _traceWorkoutSaveStep('log.findInsertion', function () {
+      return _findInsertionRow(sheet, date);
+    });
+    _traceWorkoutSaveStep('log.insertRows', function () {
+      sheet.insertRows(insertionRow, numRows);
+    });
+    _traceWorkoutSaveStep('log.setValues', function () {
+      sheet.getRange(insertionRow, 1, numRows, numCols).setValues(allRowsToWrite);
+    });
 
-    _upsertWorkoutSession(userSheet, {
+    _traceWorkoutSaveStep('session.upsert', function () {
+      _upsertWorkoutSession(userSheet, {
       sessionId: sessionId,
       date: date,
       sessionNote: sessionNote,
       totalVolume: dailyTotalVolume,
-      workingSets: workingSetCount
+        workingSets: workingSetCount
+      });
     });
   }
 }
