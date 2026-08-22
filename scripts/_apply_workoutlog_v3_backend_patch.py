@@ -1,6 +1,7 @@
 from pathlib import Path
 import re
 
+# Temporary branch-only patch runner; removed automatically after validation.
 path = Path('src/Internal.gs')
 text = path.read_text(encoding='utf-8')
 
