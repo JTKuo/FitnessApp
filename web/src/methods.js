@@ -2,6 +2,7 @@ import { app } from './app.js';                 // call-time 引用，無循環�
 import { APP_CONSTANTS } from './constants.js';
 import { renderDrivePhoto } from './photos.js';
 import { CATEGORY_ORDER, ALL_TAGS } from './exercise-taxonomy.js';
+import { normalizeSetType } from './set-type.js';
 
 export const methods = {
                 handleError(error, contextMessage = "發生錯誤") {
@@ -1124,10 +1125,12 @@ export const methods = {
                         const weightInput = set.querySelector('.js-weight-input');
                         const repsInput = set.querySelector('.js-reps-input');
                         const unitSelect = set.querySelector('.js-unit-select');
+                        const setTypeSelect = set.querySelector('.js-set-type-select');
 
                         const weight = parseFloat(weightInput.value) || 0;
                         const reps = parseInt(repsInput.value) || 0;
                         const unit = unitSelect.value;
+                        const setType = normalizeSetType(setTypeSelect?.value);
 
                         let weightInKg = weight;
                         if (unit === '磅') {
@@ -1143,6 +1146,7 @@ export const methods = {
                             unit: unit,
                             reps: reps,
                             weight_in_kg: weightInKg,
+                            set_type: setType,
                             note: note // 將備註加入到每一組的資料中
                           });
                         }
@@ -1243,10 +1247,12 @@ export const methods = {
                     // (新功能) 獲取上一組的數據
                     let lastWeight = '';
                     let lastUnit = '公斤';
+                    let lastSetType = 'working';
                     if (allSets.length > 0) {
                         const lastSet = allSets[allSets.length - 1];
                         lastWeight = lastSet.querySelector('.js-weight-input').value;
                         lastUnit = lastSet.querySelector('.js-unit-select').value;
+                        lastSetType = normalizeSetType(lastSet.querySelector('.js-set-type-select')?.value);
                     }
 
                     const newSetElement = this.createSetElement(setNumber);
@@ -1255,6 +1261,8 @@ export const methods = {
                     // (新功能) 將數據填入新的一組
                     newSetElement.querySelector('.js-weight-input').value = lastWeight;
                     newSetElement.querySelector('.js-unit-select').value = lastUnit;
+                    const newSetTypeSelect = newSetElement.querySelector('.js-set-type-select');
+                    if (newSetTypeSelect) newSetTypeSelect.value = lastSetType;
                     
                     setsContainer.appendChild(newSetElement);
                     const addedSet = setsContainer.querySelector('.js-set-row:last-child');
@@ -1514,6 +1522,7 @@ export const methods = {
                     const lastWeight = lastSet.querySelector('.js-weight-input').value;
                     const lastReps = lastSet.querySelector('.js-reps-input').value;
                     const lastUnit = lastSet.querySelector('.js-unit-select').value;
+                    const lastSetType = normalizeSetType(lastSet.querySelector('.js-set-type-select')?.value);
                     
                     // 先新增一個空白組
                     this.addSet(exerciseCard);
@@ -1525,6 +1534,8 @@ export const methods = {
                         newSet.querySelector('.js-weight-input').value = lastWeight;
                         newSet.querySelector('.js-reps-input').value = lastReps;
                         newSet.querySelector('.js-unit-select').value = lastUnit;
+                        const newSetTypeSelect = newSet.querySelector('.js-set-type-select');
+                        if (newSetTypeSelect) newSetTypeSelect.value = lastSetType;
                     }
                     
                     // 更新總容量計算

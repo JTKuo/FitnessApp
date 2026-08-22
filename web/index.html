@@ -743,7 +743,13 @@
       <template id="set-row-template">
           <div class="flex items-center space-x-2 js-set-row relative">
               <span class="js-pr-badge hidden absolute -left-1 -top-1 bg-yellow-400 text-black text-xs font-bold px-2 py-0.5 rounded-full shadow-md animate-pulse"></span>              
-              <span class="js-set-number w-12 text-center text-gray-400 text-sm flex-shrink-0"></span>
+              <div class="w-16 flex-shrink-0 space-y-1">
+                  <span class="js-set-number block text-center text-gray-400 text-sm"></span>
+                  <select aria-label="組別類型" class="w-full rounded-md px-1 py-1 bg-black border border-yellow-500 text-[11px] text-center js-set-type-select">
+                      <option value="working">工作</option>
+                      <option value="warmup">熱身</option>
+                  </select>
+              </div>
               <div class="flex-grow grid grid-cols-2 gap-x-2">
                   <div class="flex items-center space-x-2">
                       <input type="number" min="0" class="w-full rounded-md p-2 text-center js-weight-input">

@@ -1,3 +1,5 @@
+import { normalizeSetType } from './set-type.js';
+
 const STORAGE_PREFIX = 'fitnessapp_workout_draft:';
 const DRAFT_VERSION = 1;
 const SAVE_DEBOUNCE_MS = 500;
@@ -68,6 +70,7 @@ function collectDraftPayload() {
         weight: set.querySelector('.js-weight-input')?.value || '',
         reps: set.querySelector('.js-reps-input')?.value || '',
         unit: set.querySelector('.js-unit-select')?.value || '公斤',
+        setType: normalizeSetType(set.querySelector('.js-set-type-select')?.value),
       }));
 
       return { name, note, sets };
@@ -115,11 +118,13 @@ function createSetFragment(setData, setNumber) {
   const weightInput = fragment.querySelector('.js-weight-input');
   const repsInput = fragment.querySelector('.js-reps-input');
   const unitSelect = fragment.querySelector('.js-unit-select');
+  const setTypeSelect = fragment.querySelector('.js-set-type-select');
 
   if (setNumberEl) setNumberEl.textContent = `SET ${setNumber}`;
   if (weightInput) weightInput.value = setData?.weight ?? '';
   if (repsInput) repsInput.value = setData?.reps ?? '';
   if (unitSelect) unitSelect.value = setData?.unit || '公斤';
+  if (setTypeSelect) setTypeSelect.value = normalizeSetType(setData?.setType);
 
   return fragment;
 }
@@ -149,7 +154,7 @@ function createExerciseCard(exercise) {
     setsContainer.innerHTML = '';
     const sets = Array.isArray(exercise.sets) && exercise.sets.length > 0
       ? exercise.sets
-      : [{ weight: '', reps: '', unit: '公斤' }];
+      : [{ weight: '', reps: '', unit: '公斤', setType: 'working' }];
 
     sets.forEach((setData, index) => {
       const setFragment = createSetFragment(setData, index + 1);

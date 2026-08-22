@@ -38,9 +38,14 @@ describe('workout draft helpers', () => {
       exercises: [{ name: '深蹲', note: '', sets: [{ weight: '100', reps: '6', unit: '公斤' }] }],
     };
     const noteChanged = { ...first, sessionNote: '今天腿很重' };
+    const setTypeChanged = {
+      ...first,
+      exercises: [{ name: '深蹲', note: '', sets: [{ weight: '100', reps: '5', unit: '公斤', setType: 'warmup' }] }],
+    };
 
     expect(fingerprint(first)).not.toBe(fingerprint(repsChanged));
     expect(fingerprint(first)).not.toBe(fingerprint(noteChanged));
+    expect(fingerprint(first)).not.toBe(fingerprint(setTypeChanged));
   });
 
   it('只有 session note 也算有效草稿內容', () => {
