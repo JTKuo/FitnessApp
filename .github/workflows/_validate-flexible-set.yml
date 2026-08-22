@@ -9,7 +9,6 @@ permissions:
 
 jobs:
   test-build-cleanup:
-    # Workflow already exists on this branch; this follow-up push is the validation trigger.
     if: ${{ !contains(github.event.head_commit.message, '[flexible-set-validated]') }}
     runs-on: ubuntu-latest
     steps:
@@ -23,7 +22,7 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - name: Check whitespace
-        run: git diff --check main...HEAD
+        run: git diff --check origin/main...HEAD
       - name: Install dependencies
         working-directory: web
         run: npm ci
