@@ -1,0 +1,63 @@
+name: validate workout set row redesign
+
+on:
+  push:
+    branches:
+      - feat/workout-set-row-redesign
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Apply product patch
+        run: python scripts/_patch_workout_set_row_redesign.py
+
+      - name: Validate diff
+        run: git diff --check origin/main...HEAD
+
+      - name: Guard observer regression
+        run: |
+          if git diff origin/main -- web | grep '^+' | grep -v '^+++' | grep -q 'MutationObserver'; then
+            echo 'New MutationObserver detected in redesign slice'
+            exit 1
+          fi
+
+      - name: Guard legacy set-type select
+        run: |
+          if grep -R --exclude-dir=node_modules --exclude-dir=dist -n 'js-set-type-select' web; then
+            echo 'Legacy set-type select remains'
+            exit 1
+          fi
+
+      - name: Install frontend dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Test frontend
+        working-directory: web
+        run: npm run test
+
+      - name: Build frontend
+        working-directory: web
+        run: npm run build
+
+      - name: Commit validated product patch and cleanup validator
+        run: |
+          rm scripts/_patch_workout_set_row_redesign.py
+          rm .github/workflows/_validate_workout_set_row_redesign.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: redesign workout set row [set-row-redesign-validated]"
+          git push
