@@ -143,8 +143,10 @@ function ensureCompleteButtons() {
     button.className = 'js-complete-set flex-shrink-0 p-1 rounded-md border border-transparent text-gray-500 hover:text-green-400 transition-colors duration-200';
     setCompleteButtonState(button, false);
 
+    const actions = setRow.querySelector('.workout-set-actions');
     const deleteButton = setRow.querySelector('.js-delete-set');
-    if (deleteButton) setRow.insertBefore(button, deleteButton);
+    if (actions && deleteButton) actions.insertBefore(button, deleteButton);
+    else if (deleteButton && deleteButton.parentElement === setRow) setRow.insertBefore(button, deleteButton);
     else setRow.appendChild(button);
   });
 }
