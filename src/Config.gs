@@ -51,6 +51,7 @@ const CONSTANTS = {
     EXERCISE_MASTER: 'ExerciseMaster',
     TEMPLATES: 'Templates',
     WORKOUT_LOG: 'WorkoutLog',
+    WORKOUT_SESSIONS: 'WorkoutSessions',
     INBODY_LOG: 'InBodyLog'
   },
   HEADERS: {

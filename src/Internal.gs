@@ -77,7 +77,7 @@ function _getOrCreateSheet(spreadsheet, sheetName) {
       sheet.setFrozenRows(1);
     } else if (sheetName === CONSTANTS.SHEETS.TEMPLATES) {
       const headers = ['TemplateName', 'ExerciseName', 'Order'];
-      sheet.appendRow(headers); [cite_start]
+      sheet.appendRow(headers);
       sheet.getRange("A1:C1").setFontWeight("bold");
       sheet.setFrozenRows(1);
     } else if (sheetName === CONSTANTS.SHEETS.PROFILE) {
@@ -104,7 +104,7 @@ function _getOrCreateSheet(spreadsheet, sheetName) {
         CONSTANTS.HEADERS.VFL,
         'training_direction'
       ];
-      sheet.appendRow(canonicalHeaders); [cite_start]
+      sheet.appendRow(canonicalHeaders);
       sheet.getRange(1, 1, 1, canonicalHeaders.length).setFontWeight("bold");
       sheet.setFrozenRows(1);
     } else if (sheetName === 'BodyPhotos') {
@@ -325,8 +325,8 @@ function _clearTodaysLog(sheet, date) {
 }
 
 /**
- * (V3 - 高性能批次寫入，可保留評論)
- * 將當日的完整訓練日誌一次性寫入工作表。
+ * (V3 foundation) 將當日訓練寫入 WorkoutLog，並以 SessionId 連結 WorkoutSessions。
+ * 前 9 欄維持完全相容；SessionId 只追加在最後，舊分析/評論邏輯不需修改。
  * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 目標工作表。
  * @param {Date} date - 日期。
  * @param {Array} workoutData - 訓練資料。
@@ -336,6 +336,18 @@ function _writeNewLog(sheet, date, workoutData, savedAdminComments) {
   const KG_TO_LB = 2.20462262;
   const allRowsToWrite = [];
   const exercises = {};
+  const userSheet = sheet.getParent();
+  const sessionId = _resolveWorkoutSessionId(userSheet, date);
+  const sessionNote = workoutData.length > 0 ? String(workoutData[0].session_note || '') : '';
+  const sessionIdColumn = _ensureWorkoutLogSessionIdHeader(sheet); // 1-based
+  const totalColumns = Math.max(9, sessionIdColumn);
+
+  const withSessionId = function (baseRow) {
+    const row = baseRow.slice();
+    while (row.length < totalColumns) row.push('');
+    row[sessionIdColumn - 1] = sessionId;
+    return row;
+  };
   
   workoutData.forEach(set => {
       if (!exercises[set.motion]) {
@@ -344,15 +356,13 @@ function _writeNewLog(sheet, date, workoutData, savedAdminComments) {
       exercises[set.motion].push(set);
   });
   
-  // ⭐ [修改] 欄位數增加到 9
-  allRowsToWrite.push([date, '', '', '', '', '', '', '', '']); // 日期列
+  allRowsToWrite.push(withSessionId([date, '', '', '', '', '', '', '', ''])); // 日期列
 
   let dailyTotalVolume = 0;
   for (const motionName in exercises) {
     const sets = exercises[motionName];
     let exerciseTotalVolume = 0;
     
-    // ⭐ [修改] 取得這個動作的管理員評論
     const adminCommentForMotion = savedAdminComments.get(motionName) || '';
 
     sets.forEach((set, index) => {
@@ -362,32 +372,37 @@ function _writeNewLog(sheet, date, workoutData, savedAdminComments) {
       exerciseTotalVolume += volume;
       
       const note = (index === 0) ? set.note : '';
-      // ⭐ [修改] 只有在第一組時，寫入管理員評論
       const adminComment = (index === 0) ? adminCommentForMotion : '';
 
-      const rowData = ['', motionName, index + 1, set.reps, weight_kg, weight_lbs, volume, note, adminComment];
+      const rowData = withSessionId(['', motionName, index + 1, set.reps, weight_kg, weight_lbs, volume, note, adminComment]);
       allRowsToWrite.push(rowData);
     });
     
-    allRowsToWrite.push(['', '', '', '', '', '動作總結', exerciseTotalVolume, '', '']);
+    // 舊 summary rows 暫時保留，待所有讀取端完成 V3 migration 後再停止產生。
+    allRowsToWrite.push(withSessionId(['', '', '', '', '', '動作總結', exerciseTotalVolume, '', '']));
     dailyTotalVolume += exerciseTotalVolume;
   }
 
-  allRowsToWrite.push(['', '', '', '', '', '本日總結', dailyTotalVolume, '', '']);
+  allRowsToWrite.push(withSessionId(['', '', '', '', '', '本日總結', dailyTotalVolume, '', '']));
   
   if (allRowsToWrite.length > 0) {
     const numRows = allRowsToWrite.length;
     const numCols = allRowsToWrite[0].length;
 
-    // 【修改】
-    // 1. 找到正確的插入列號
     const insertionRow = _findInsertionRow(sheet, date);
-    
-    // 2. 在該位置插入 N 個空白列
     sheet.insertRows(insertionRow, numRows);
-    
-    // 3. 將資料寫入到剛剛建立的空白列中
     sheet.getRange(insertionRow, 1, numRows, numCols).setValues(allRowsToWrite);
+
+    // WorkoutLog 成功寫入後才 materialize session summary。
+    // 若此步驟失敗，整個 API 回錯；下一次重送仍會先清除同日 log，因此不會 duplicate。
+    _upsertWorkoutSession(userSheet, {
+      sessionId: sessionId,
+      date: date,
+      sessionNote: sessionNote,
+      totalVolume: dailyTotalVolume,
+      // SetType 尚未加入前，所有目前可儲存的 set 都視為 working set。
+      workingSets: workoutData.length
+    });
   }
 }
 

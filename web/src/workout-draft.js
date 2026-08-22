@@ -57,6 +57,7 @@ function removeStorage(key) {
 function collectDraftPayload() {
   const workoutList = document.getElementById('workout-list');
   const dateInput = document.getElementById('workout-date-input');
+  const sessionNoteInput = document.getElementById('workout-session-note');
   if (!workoutList) return null;
 
   const exercises = [...workoutList.querySelectorAll('.card')]
@@ -76,8 +77,16 @@ function collectDraftPayload() {
   return {
     version: DRAFT_VERSION,
     date: dateInput?.value || '',
+    sessionNote: sessionNoteInput?.value || '',
     exercises,
   };
+}
+
+function hasDraftContent(payload) {
+  return Boolean(payload && (
+    (Array.isArray(payload.exercises) && payload.exercises.length > 0) ||
+    String(payload.sessionNote || '').trim()
+  ));
 }
 
 function fingerprint(payload) {
@@ -85,6 +94,7 @@ function fingerprint(payload) {
   return JSON.stringify({
     version: payload.version,
     date: payload.date,
+    sessionNote: payload.sessionNote || '',
     exercises: payload.exercises,
   });
 }
@@ -198,6 +208,7 @@ export const workoutDraft = {
 
     const workoutList = document.getElementById('workout-list');
     const dateInput = document.getElementById('workout-date-input');
+    const sessionNoteInput = document.getElementById('workout-session-note');
     const userSwitcher = document.getElementById('user-switcher');
 
     if (workoutList) {
@@ -211,6 +222,11 @@ export const workoutDraft = {
     if (dateInput) {
       dateInput.addEventListener('input', () => this.scheduleSave());
       dateInput.addEventListener('change', () => this.scheduleSave());
+    }
+
+    if (sessionNoteInput) {
+      sessionNoteInput.addEventListener('input', () => this.scheduleSave());
+      sessionNoteInput.addEventListener('change', () => this.scheduleSave());
     }
 
     document.addEventListener('visibilitychange', () => {
@@ -263,7 +279,7 @@ export const workoutDraft = {
     const payload = collectDraftPayload();
     if (!key || !payload) return false;
 
-    if (payload.exercises.length === 0) {
+    if (!hasDraftContent(payload)) {
       committedFingerprints.delete(email);
       removeStorage(key);
       return true;
@@ -284,12 +300,15 @@ export const workoutDraft = {
     const draft = parseStoredDraft(readStorage(key), key);
     const workoutList = document.getElementById('workout-list');
 
-    if (!draft || !workoutList || draft.exercises.length === 0) return false;
+    if (!draft || !workoutList || !hasDraftContent(draft)) return false;
 
     restoring = true;
     try {
       const dateInput = document.getElementById('workout-date-input');
       if (dateInput && draft.date) dateInput.value = draft.date;
+
+      const sessionNoteInput = document.getElementById('workout-session-note');
+      if (sessionNoteInput) sessionNoteInput.value = draft.sessionNote || '';
 
       workoutList.innerHTML = '';
       draft.exercises.forEach((exercise) => {
@@ -310,7 +329,7 @@ export const workoutDraft = {
     const payload = collectDraftPayload();
     return {
       email,
-      fingerprint: payload && payload.exercises.length > 0 ? fingerprint(payload) : '',
+      fingerprint: hasDraftContent(payload) ? fingerprint(payload) : '',
     };
   },
 
@@ -327,7 +346,7 @@ export const workoutDraft = {
     let committedFingerprint = context?.fingerprint || '';
     if (!committedFingerprint) {
       const payload = collectDraftPayload();
-      if (payload && payload.exercises.length > 0) committedFingerprint = fingerprint(payload);
+      if (hasDraftContent(payload)) committedFingerprint = fingerprint(payload);
     }
 
     if (committedFingerprint) committedFingerprints.set(email, committedFingerprint);
@@ -358,4 +377,5 @@ export const workoutDraftInternals = {
   normalizeEmail,
   storageKey,
   fingerprint,
+  hasDraftContent,
 };
