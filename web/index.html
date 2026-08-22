@@ -729,19 +729,17 @@
 
             <div class="js-sets-container space-y-1"></div>
 
-            <div class="mt-3">
-                <textarea class="js-exercise-note workout-note w-full resize-none rounded-xl px-3 py-2 text-sm" rows="2" placeholder="備註（選填）"></textarea>
-            </div>
-
-            <div class="workout-card-actions mt-3">
-                <button class="js-start-timer workout-action workout-action-primary" type="button">
-                    <ion-icon name="timer-outline" class="text-lg pointer-events-none"></ion-icon>
-                    <span>休息</span>
-                </button>
-                <button class="js-add-set workout-action workout-action-secondary" type="button">
-                    <ion-icon name="add-outline" class="text-xl pointer-events-none"></ion-icon>
+            <div class="workout-add-set-row" aria-label="新增訓練組">
+                <span class="workout-add-set-line" aria-hidden="true"></span>
+                <button class="js-add-set workout-add-set-button" type="button">
+                    <ion-icon name="add-outline" class="text-lg pointer-events-none"></ion-icon>
                     <span>新增一組</span>
                 </button>
+                <span class="workout-add-set-line" aria-hidden="true"></span>
+            </div>
+
+            <div class="mt-2">
+                <textarea class="js-exercise-note workout-note w-full resize-none rounded-xl px-3 py-2 text-sm" rows="2" placeholder="備註（選填）"></textarea>
             </div>
         </div>
     </template>

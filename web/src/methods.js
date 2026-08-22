@@ -1228,6 +1228,24 @@ export const methods = {
                         displayElement.textContent = `${finalVolume} ${displayUnit}`;
                     }
                 },
+
+                resizeWorkoutNote(textarea) {
+                    if (!textarea) return;
+
+                    textarea.style.height = 'auto';
+                    const computedMaxHeight = Number.parseFloat(window.getComputedStyle(textarea).maxHeight);
+                    const maxHeight = Number.isFinite(computedMaxHeight) ? computedMaxHeight : 128;
+                    const contentHeight = textarea.scrollHeight;
+                    const nextHeight = Math.min(contentHeight, maxHeight);
+
+                    textarea.style.height = `${nextHeight}px`;
+                    textarea.style.overflowY = contentHeight > maxHeight + 1 ? 'auto' : 'hidden';
+                },
+
+                resizeWorkoutNotes(root = document) {
+                    if (!root?.querySelectorAll) return;
+                    root.querySelectorAll('.js-exercise-note').forEach((textarea) => this.resizeWorkoutNote(textarea));
+                },
 				
                 applySetTypeToToggle(button, value) {
                     if (!button) return;

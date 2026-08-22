@@ -223,18 +223,21 @@ export const events = {
                     const deleteExerciseButton = target.closest('.js-delete-exercise');
                     const copySetButton = target.closest('.js-copy-set');
                     const setTypeToggleButton = target.closest('.js-set-type-toggle');
-					          const startTimerButton = target.closest('.js-start-timer');
 
                     if (setTypeToggleButton) app.methods.toggleSetType(setTypeToggleButton);
                     if (addSetButton) app.methods.addSet(exerciseCard);
                     if (deleteSetButton) app.methods.deleteSet(deleteSetButton.closest('.js-set-row'));
                     if (deleteExerciseButton) app.methods.deleteExercise(exerciseCard);
                     if (copySetButton) app.methods.copyLastSet(exerciseCard);
-					          if (startTimerButton) app.methods.startTimer(APP_CONSTANTS.WORKOUT.DEFAULT_REST_TIME); //
                 },
 
                 handleWorkoutListInput(event) {
                     const target = event.target;
+
+                    if (target.matches('.js-exercise-note')) {
+                        app.methods.resizeWorkoutNote(target);
+                    }
+
                     if (target.matches('.js-weight-input, .js-reps-input, .js-unit-select')) {
                         const exerciseCard = target.closest('.card');
                         if (exerciseCard) {
