@@ -52,18 +52,27 @@ const API_ROUTES = {
  * 成功 { ok: true, data: ... }；失敗 { ok: false, error: { message } }。
  */
 function doPost(e) {
+  const apiStartedAt = Date.now();
   let out;
   try {
     if (!e || !e.postData || !e.postData.contents) {
       throw new Error('無效的請求格式。');
     }
     const req = JSON.parse(e.postData.contents);
+
+    const authStartedAt = Date.now();
     const email = verifyAny(req.token);
+    const authMs = Date.now() - authStartedAt;
+
     const handler = API_ROUTES[req.action];
     if (!handler) {
       throw new Error('未知的 API action：' + req.action);
     }
+
+    const handlerStartedAt = Date.now();
     const data = handler(email, req.payload || {});
+    const handlerMs = Date.now() - handlerStartedAt;
+
     // 舊函式以回傳值表達錯誤的兩種慣例，一律轉為統一錯誤
     if (data && typeof data === 'object' && !Array.isArray(data)) {
       if (data.error) {
@@ -72,10 +81,19 @@ function doPost(e) {
       if (data.status === 'error') {
         throw new Error(data.message || '後端處理失敗');
       }
+
+      if (req.action === 'saveWorkoutData') {
+        data.performance = data.performance || {};
+        data.performance.authMs = authMs;
+        data.performance.handlerMs = handlerMs;
+        data.performance.apiTotalMs = Date.now() - apiStartedAt;
+      }
     }
+
     // 每次成功回應都附帶重新計時的 token —— 滑動續期
     out = { ok: true, data: (data === undefined ? null : data), token: issueSessionToken(email) };
   } catch (err) {
+    _discardWorkoutSaveTrace();
     out = { ok: false, error: { message: err.message } };
   }
   return ContentService.createTextOutput(JSON.stringify(out))
@@ -390,39 +408,61 @@ function saveBodyPhotosToServer(authedEmail, data) {
  * @returns {object} 包含成功訊息的物件。
  */
 function saveWorkoutDataToServer(authedEmail, workoutData) {
+  _startWorkoutSaveTrace();
   try {
-    const cache = CacheService.getUserCache();
     const userEmail = authedEmail;
-    cache.remove(`analysis_data_${userEmail}`);
-    Logger.log(`為使用者 ${userEmail} 清除了分析數據快取(因為儲存了新訓練)。`);
+
+    _traceWorkoutSaveStep('cache.invalidate', function () {
+      const cache = CacheService.getUserCache();
+      cache.remove(`analysis_data_${userEmail}`);
+    });
 
     if (!workoutData || !Array.isArray(workoutData) || workoutData.length === 0) {
       throw new Error('無效的訓練資料格式或內容為空。');
     }
 
-    const userSheet = _getUserSheet(authedEmail, true);
+    const userSheet = _traceWorkoutSaveStep('sheet.openUser', function () {
+      return _getUserSheet(authedEmail, true);
+    });
     if (!userSheet) throw new Error('找不到您的資料檔案。');
-    
+
     const date = new Date(workoutData[0].date);
 
-    const logSheet = _getOrCreateSheet(userSheet, CONSTANTS.SHEETS.WORKOUT_LOG);    
-    const savedAdminComments = _clearTodaysLog(logSheet, date); 
+    const logSheet = _traceWorkoutSaveStep('sheet.getWorkoutLog', function () {
+      return _getOrCreateSheet(userSheet, CONSTANTS.SHEETS.WORKOUT_LOG);
+    });
 
-    _writeNewLog(logSheet, date, workoutData, savedAdminComments);
+    const savedAdminComments = _traceWorkoutSaveStep('log.clearToday', function () {
+      return _clearTodaysLog(logSheet, date);
+    });
+
+    _traceWorkoutSaveStep('log.writeNew', function () {
+      _writeNewLog(logSheet, date, workoutData, savedAdminComments);
+    });
 
     // 讓新動作自動進入分類目錄（失敗僅記錄，絕不影響訓練記錄的儲存）
     try {
-      _ensureExercisesRegistered(
-        authedEmail,
-        userSheet,
-        workoutData.map(function (s) { return s.motion; })
-      );
+      _traceWorkoutSaveStep('exercise.register', function () {
+        _ensureExercisesRegistered(
+          authedEmail,
+          userSheet,
+          workoutData.map(function (s) { return s.motion; })
+        );
+      });
     } catch (e) {
       Logger.log('自動登錄動作分類失敗（不影響訓練儲存）：' + e.message);
     }
 
-    return { status: 'success', message: '訓練日誌已成功儲存！' };
+    const performance = _finishWorkoutSaveTrace();
+    Logger.log('[Workout Save Trace] ' + JSON.stringify(performance));
+    return {
+      status: 'success',
+      message: '訓練日誌已成功儲存！',
+      performance: performance
+    };
   } catch(e) {
+    const performance = _finishWorkoutSaveTrace();
+    Logger.log('[Workout Save Trace ERROR] ' + JSON.stringify(performance));
     Logger.log("saveWorkoutDataToServer 錯誤: " + e.toString());
     return { status: 'error', message: '後端處理失敗: ' + e.message };
   }

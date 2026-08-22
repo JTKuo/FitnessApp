@@ -1053,8 +1053,23 @@ export const methods = {
                     // PR/Bests 屬於可重建的後處理，不應讓使用者多等一個 GAS round trip。
                     app.api.saveWorkoutData(workoutData)
                         .then(response => {
-                            console.info(`[Workout Save] 核心儲存 ${Math.round(performance.now() - saveStartedAt)} ms`);
+                            const clientCoreMs = Math.round(performance.now() - saveStartedAt);
+                            console.info(`[Workout Save] 核心儲存 ${clientCoreMs} ms`);
                             app.ui.showToast(response.message);
+
+                            if (response.performance) {
+                                const perf = response.performance;
+                                const steps = perf.steps || {};
+                                const slowest = Object.entries(steps).sort((a, b) => b[1] - a[1])[0] || ['', 0];
+                                const gasMs = Number(perf.apiTotalMs || perf.totalMs || 0);
+                                const transportMs = Math.max(0, clientCoreMs - gasMs);
+                                const seconds = (value) => (Number(value || 0) / 1000).toFixed(1);
+                                console.info('[Workout Save] server trace', perf);
+                                app.ui.showToast(
+                                    `儲存效能：核心 ${seconds(clientCoreMs)}s｜GAS ${seconds(gasMs)}s｜傳輸約 ${seconds(transportMs)}s｜最慢 ${slowest[0]} ${seconds(slowest[1])}s`
+                                );
+                            }
+
                             app.cache.clearWorkoutRelated();
                             app.ui.showLoading(false);
 
