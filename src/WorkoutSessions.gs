@@ -59,8 +59,8 @@ function _getOrCreateWorkoutSessionsSheet(userSheet) {
   if (missing.length > 0) {
     sheet.getRange(1, sheet.getLastColumn() + 1, 1, missing.length).setValues([missing]);
     sheet.getRange(1, 1, 1, sheet.getLastColumn()).setFontWeight('bold');
+    if (sheet.getFrozenRows() < 1) sheet.setFrozenRows(1);
   }
-  sheet.setFrozenRows(1);
   return sheet;
 }
 
@@ -127,24 +127,30 @@ function _resolveWorkoutSessionContext(userSheet, date) {
 
   let rowNumber = -1;
   let sessionId = '';
+  const lastRow = sessionSheet.getLastRow();
 
-  if (targetKey && sessionSheet.getLastRow() >= 2 && dateIndex !== -1) {
+  if (targetKey && lastRow >= 2 && dateIndex !== -1) {
     const firstIndex = Math.min(dateIndex, idIndex === -1 ? dateIndex : idIndex);
     const lastIndex = Math.max(dateIndex, idIndex === -1 ? dateIndex : idIndex);
-    const rowCount = sessionSheet.getLastRow() - 1;
-    const values = sessionSheet
-      .getRange(2, firstIndex + 1, rowCount, lastIndex - firstIndex + 1)
-      .getValues();
+    const width = lastIndex - firstIndex + 1;
 
-    for (let i = 0; i < values.length; i++) {
-      const rowDate = values[i][dateIndex - firstIndex];
-      if (!(rowDate instanceof Date) || _dateKey(rowDate) !== targetKey) continue;
-
-      rowNumber = i + 2;
-      if (idIndex !== -1) {
-        sessionId = String(values[i][idIndex - firstIndex] || '');
+    // WorkoutSessions is newest-first. Normal gym saves therefore hit row 2 and
+    // should not scan the user's entire session history.
+    const firstRow = sessionSheet.getRange(2, firstIndex + 1, 1, width).getValues()[0];
+    const firstDate = firstRow[dateIndex - firstIndex];
+    if (firstDate instanceof Date && _dateKey(firstDate) === targetKey) {
+      rowNumber = 2;
+      if (idIndex !== -1) sessionId = String(firstRow[idIndex - firstIndex] || '');
+    } else if (lastRow >= 3) {
+      // Historical/back-dated saves retain the old exhaustive lookup behavior.
+      const values = sessionSheet.getRange(3, firstIndex + 1, lastRow - 2, width).getValues();
+      for (let i = 0; i < values.length; i++) {
+        const rowDate = values[i][dateIndex - firstIndex];
+        if (!(rowDate instanceof Date) || _dateKey(rowDate) !== targetKey) continue;
+        rowNumber = i + 3;
+        if (idIndex !== -1) sessionId = String(values[i][idIndex - firstIndex] || '');
+        break;
       }
-      break;
     }
   }
 
