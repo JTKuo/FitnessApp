@@ -1,0 +1,43 @@
+name: Final workout save validation
+
+on:
+  push:
+    branches: [perf/workout-save-latency]
+
+permissions:
+  contents: write
+
+jobs:
+  test-build-cleanup:
+    if: ${{ contains(github.event.head_commit.message, 'run final workout save validation') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: perf/workout-save-latency
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Check whitespace
+        run: git diff --check origin/main...HEAD
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+      - name: Run tests
+        working-directory: web
+        run: npm run test
+      - name: Build
+        working-directory: web
+        run: npm run build
+      - name: Remove temporary validation files
+        run: rm -f scripts/_patch_workout_save_latency.py .github/workflows/_validate_workout_save_final.yml .github/_trigger-workout-save-final
+      - name: Commit validated result
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "perf: validate non-blocking workout save [workout-save-final-validated]"
+          git push origin HEAD:perf/workout-save-latency
