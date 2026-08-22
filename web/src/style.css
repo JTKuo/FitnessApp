@@ -654,6 +654,12 @@
 
 
 /* --- Duration Tracking v1 --- */
+/* Tracking input visibility must beat the unlayered .workout-set-inputs display:grid rule.
+   Tailwind's layered .hidden utility has lower cascade priority than this custom CSS. */
+.workout-set-inputs.hidden {
+    display: none;
+}
+
 .workout-duration-inputs {
     grid-template-columns: minmax(0, 1fr);
 }
