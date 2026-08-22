@@ -1,4 +1,4 @@
-const INPUT_SELECTOR = '.js-weight-input, .js-reps-input';
+const INPUT_SELECTOR = '.js-weight-input, .js-reps-input, .js-duration-input';
 const PANEL_ID = 'workout-numeric-input-panel';
 
 const CONFIG = {
@@ -14,6 +14,12 @@ const CONFIG = {
     decimals: 0,
     steps: [-5, -1, 1, 5],
   },
+  duration: {
+    label: '秒數',
+    max: 86400,
+    decimals: 0,
+    steps: [-30, -10, -5, 5, 10, 30],
+  },
 };
 
 let initialized = false;
@@ -27,6 +33,7 @@ let previousBodyOverflow = '';
 function getKind(input) {
   if (input?.classList?.contains('js-weight-input')) return 'weight';
   if (input?.classList?.contains('js-reps-input')) return 'reps';
+  if (input?.classList?.contains('js-duration-input')) return 'duration';
   return null;
 }
 
@@ -159,9 +166,9 @@ function renderPanel() {
   if (display) display.textContent = getDisplayValue();
   if (stepContainer) {
     stepContainer.innerHTML = buildStepButtons(activeKind);
-    stepContainer.className = activeKind === 'weight'
-      ? 'grid grid-cols-6 gap-1.5 mb-3'
-      : 'grid grid-cols-4 gap-2 mb-3';
+    stepContainer.className = activeKind === 'reps'
+      ? 'grid grid-cols-4 gap-2 mb-3'
+      : 'grid grid-cols-6 gap-1.5 mb-3';
   }
   if (decimalButton) {
     decimalButton.disabled = activeKind !== 'weight';
@@ -257,7 +264,8 @@ function decorateInput(input) {
   input.setAttribute('aria-haspopup', 'dialog');
   input.setAttribute('autocomplete', 'off');
   if (!input.getAttribute('aria-label')) {
-    input.setAttribute('aria-label', getKind(input) === 'weight' ? '重量' : '次數');
+    const kind = getKind(input);
+    input.setAttribute('aria-label', CONFIG[kind]?.label || '訓練數值');
   }
 }
 

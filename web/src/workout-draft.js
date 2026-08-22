@@ -1,4 +1,5 @@
 import { normalizeSetType } from './set-type.js';
+import { normalizeTrackingType, TRACKING_TYPE } from './tracking-type.js';
 
 const STORAGE_PREFIX = 'fitnessapp_workout_draft:';
 const DRAFT_VERSION = 1;
@@ -66,14 +67,16 @@ function collectDraftPayload() {
     .map((card) => {
       const name = card.querySelector('h3')?.textContent?.trim() || '';
       const note = card.querySelector('.js-exercise-note')?.value || '';
+      const trackingType = normalizeTrackingType(card.dataset.trackingType);
       const sets = [...card.querySelectorAll('.js-set-row')].map((set) => ({
         weight: set.querySelector('.js-weight-input')?.value || '',
         reps: set.querySelector('.js-reps-input')?.value || '',
         unit: set.querySelector('.js-unit-select')?.value || '公斤',
+        durationSec: set.querySelector('.js-duration-input')?.value || '',
         setType: normalizeSetType(set.querySelector('.js-set-type-toggle')?.dataset.setType),
       }));
 
-      return { name, note, sets };
+      return { name, note, trackingType, exerciseId: card.dataset.exerciseId || '', sets };
     })
     .filter((exercise) => exercise.name);
 
@@ -109,7 +112,7 @@ function buildStoredDraft(payload) {
   };
 }
 
-function createSetFragment(setData, setNumber) {
+function createSetFragment(setData, setNumber, trackingType = TRACKING_TYPE.WEIGHT_REPS) {
   const template = document.getElementById('set-row-template');
   if (!template) return null;
 
@@ -118,12 +121,19 @@ function createSetFragment(setData, setNumber) {
   const weightInput = fragment.querySelector('.js-weight-input');
   const repsInput = fragment.querySelector('.js-reps-input');
   const unitSelect = fragment.querySelector('.js-unit-select');
+  const durationInput = fragment.querySelector('.js-duration-input');
   const setTypeToggle = fragment.querySelector('.js-set-type-toggle');
+  const setRow = fragment.querySelector('.js-set-row');
 
   if (setNumberEl) setNumberEl.textContent = `SET ${setNumber}`;
   if (weightInput) weightInput.value = setData?.weight ?? '';
   if (repsInput) repsInput.value = setData?.reps ?? '';
   if (unitSelect) unitSelect.value = setData?.unit || '公斤';
+  if (durationInput) durationInput.value = setData?.durationSec ?? '';
+  const normalizedTrackingType = normalizeTrackingType(trackingType);
+  if (setRow) setRow.dataset.trackingType = normalizedTrackingType;
+  fragment.querySelector('.js-weight-reps-inputs')?.classList.toggle('hidden', normalizedTrackingType !== TRACKING_TYPE.WEIGHT_REPS);
+  fragment.querySelector('.js-duration-inputs')?.classList.toggle('hidden', normalizedTrackingType !== TRACKING_TYPE.DURATION);
   if (setTypeToggle) {
     const setType = normalizeSetType(setData?.setType);
     const isWarmup = setType === 'warmup';
@@ -149,6 +159,10 @@ function createExerciseCard(exercise) {
   const title = card.querySelector('h3');
   if (title) title.textContent = exercise.name || '';
 
+  const trackingType = normalizeTrackingType(exercise.trackingType);
+  card.dataset.trackingType = trackingType;
+  if (exercise.exerciseId) card.dataset.exerciseId = exercise.exerciseId;
+
   const noteInput = card.querySelector('.js-exercise-note');
   if (noteInput) noteInput.value = exercise.note || '';
 
@@ -160,10 +174,10 @@ function createExerciseCard(exercise) {
     setsContainer.innerHTML = '';
     const sets = Array.isArray(exercise.sets) && exercise.sets.length > 0
       ? exercise.sets
-      : [{ weight: '', reps: '', unit: '公斤', setType: 'working' }];
+      : [{ weight: '', reps: '', unit: '公斤', durationSec: '', setType: 'working' }];
 
     sets.forEach((setData, index) => {
-      const setFragment = createSetFragment(setData, index + 1);
+      const setFragment = createSetFragment(setData, index + 1, trackingType);
       if (setFragment) setsContainer.appendChild(setFragment);
     });
   }

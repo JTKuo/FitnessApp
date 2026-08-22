@@ -3,6 +3,7 @@ import { APP_CONSTANTS } from './constants.js';
 import { renderDrivePhoto } from './photos.js';
 import { CATEGORY_ORDER, ALL_TAGS } from './exercise-taxonomy.js';
 import { normalizeSetType, SET_TYPE } from './set-type.js';
+import { formatDuration, normalizeDurationSec, normalizeTrackingType, TRACKING_TYPE } from './tracking-type.js';
 
 export const methods = {
                 handleError(error, contextMessage = "發生錯誤") {
@@ -47,13 +48,15 @@ export const methods = {
                             throw new Error(data.error || "切換使用者失敗。");
                         }
                         
-                        const { profile, templates, exerciseNames } = data;
+                        const { profile, templates, exerciseNames, exerciseCatalog = [] } = data;
 
                         // 🆕 使用新結構更新狀態
                         app.state.user.currentUser = profile.email;
                         app.state.ui.shouldShowReminder = profile.shouldShowReminder;
                         app.state.cache.workoutTemplates = templates;
                         app.state.cache.exerciseNameList = exerciseNames;
+                        app.state.cache.exerciseCatalog = exerciseCatalog;
+                        app.state.classify.catalog = exerciseCatalog;
                         app.state.user.profileData = data.profile.profileData;
 
                         app.ui.populateProfileData(profile.profileData);
@@ -1103,56 +1106,36 @@ export const methods = {
 
                 collectWorkoutData() {
                     const LB_TO_KG = 0.45359237;
-                    const allExerciseCards = document.querySelectorAll('#workout-list .card');
                     const workoutData = [];
                     const selectedDateString = document.getElementById('workout-date-input').value;
-
                     const now = new Date();
                     const finalDate = new Date(selectedDateString);
-
-                    finalDate.setHours(now.getHours());
-                    finalDate.setMinutes(now.getMinutes());
-                    finalDate.setSeconds(now.getSeconds());
-
+                    finalDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
                     const dateToSave = finalDate.toISOString();
-
-                    allExerciseCards.forEach(card => {
+                    document.querySelectorAll('#workout-list .card').forEach(card => {
                       const exerciseName = card.querySelector('h3').textContent;
-                      const note = card.querySelector('.js-exercise-note').value; // 讀取備註
-                      const sets = card.querySelectorAll('.js-set-row');
-
-                      sets.forEach((set, index) => {
-                        const weightInput = set.querySelector('.js-weight-input');
-                        const repsInput = set.querySelector('.js-reps-input');
-                        const unitSelect = set.querySelector('.js-unit-select');
-                        const setTypeToggle = set.querySelector('.js-set-type-toggle');
-
-                        const weight = parseFloat(weightInput.value) || 0;
-                        const reps = parseInt(repsInput.value) || 0;
-                        const unit = unitSelect.value;
-                        const setType = normalizeSetType(setTypeToggle?.dataset.setType);
-
-                        let weightInKg = weight;
-                        if (unit === '磅') {
-                          weightInKg = parseFloat((weight * LB_TO_KG).toFixed(2));
+                      const exerciseId = card.dataset.exerciseId || '';
+                      const trackingType = normalizeTrackingType(card.dataset.trackingType);
+                      const note = card.querySelector('.js-exercise-note').value;
+                      card.querySelectorAll('.js-set-row').forEach((set, index) => {
+                        const setType = normalizeSetType(set.querySelector('.js-set-type-toggle')?.dataset.setType);
+                        if (trackingType === TRACKING_TYPE.DURATION) {
+                          const durationSec = normalizeDurationSec(set.querySelector('.js-duration-input')?.value);
+                          if (durationSec <= 0) return;
+                          workoutData.push({ date: dateToSave, motion: exerciseName, exercise_id: exerciseId, set: index + 1, weight: 0, unit: '公斤', reps: 0, weight_in_kg: 0, set_type: setType, tracking_type: TRACKING_TYPE.DURATION, duration_sec: durationSec, note: note });
+                          return;
                         }
-
+                        const weight = parseFloat(set.querySelector('.js-weight-input')?.value) || 0;
+                        const reps = parseInt(set.querySelector('.js-reps-input')?.value) || 0;
+                        const unit = set.querySelector('.js-unit-select')?.value || '公斤';
+                        let weightInKg = weight;
+                        if (unit === '磅') weightInKg = parseFloat((weight * LB_TO_KG).toFixed(2));
                         if (weight > 0 || reps > 0) {
-                          workoutData.push({
-                            date: dateToSave,
-                            motion: exerciseName,
-                            set: index + 1,
-                            weight: weight,
-                            unit: unit,
-                            reps: reps,
-                            weight_in_kg: weightInKg,
-                            set_type: setType,
-                            note: note // 將備註加入到每一組的資料中
-                          });
+                          workoutData.push({ date: dateToSave, motion: exerciseName, exercise_id: exerciseId, set: index + 1, weight: weight, unit: unit, reps: reps, weight_in_kg: weightInKg, set_type: setType, tracking_type: TRACKING_TYPE.WEIGHT_REPS, note: note });
                         }
                       });
                     });
-                    console.log("收集到的訓練資料:", workoutData);
+                    console.log('收集到的訓練資料:', workoutData);
                     return workoutData;
                 },
 
@@ -1160,73 +1143,83 @@ export const methods = {
                     const LB_TO_KG = 0.45359237;
                     const allExerciseCards = document.querySelectorAll('#workout-list .card');
                     let dailyTotalVolumeInKg = 0;
-
                     allExerciseCards.forEach(card => {
-                        const sets = card.querySelectorAll('.js-set-row');
-                        sets.forEach(set => {
-                            const weightInput = set.querySelector('.js-weight-input');
-                            const repsInput = set.querySelector('.js-reps-input');
-                            const unitSelect = set.querySelector('.js-unit-select');
-                            
-                            let weight = parseFloat(weightInput.value) || 0;
-                            const reps = parseInt(repsInput.value) || 0;
-                            const currentUnit = unitSelect.value;
-
-                            if (currentUnit === '磅') {
-                                weight = weight * LB_TO_KG;
-                            }
-                            
+                        if (normalizeTrackingType(card.dataset.trackingType) !== TRACKING_TYPE.WEIGHT_REPS) return;
+                        card.querySelectorAll('.js-set-row').forEach(set => {
+                            let weight = parseFloat(set.querySelector('.js-weight-input')?.value) || 0;
+                            const reps = parseInt(set.querySelector('.js-reps-input')?.value) || 0;
+                            const unit = set.querySelector('.js-unit-select')?.value || '公斤';
+                            if (unit === '磅') weight *= LB_TO_KG;
                             dailyTotalVolumeInKg += weight * reps;
                         });
                     });
-
                     const displayElement = document.getElementById('daily-total-volume-display');
-                    if (displayElement) {
-                        const finalVolume = parseFloat(dailyTotalVolumeInKg.toFixed(2));
-                        displayElement.textContent = `${finalVolume} 公斤`;
-                    }
+                    if (displayElement) displayElement.textContent = `${parseFloat(dailyTotalVolumeInKg.toFixed(2))} 公斤`;
                 },
 
                 calculateVolume(exerciseCard) {
+                    if (!exerciseCard) return;
+                    const trackingType = normalizeTrackingType(exerciseCard.dataset.trackingType);
+                    const displayElement = exerciseCard.querySelector('.js-volume-display');
+                    const labelElement = exerciseCard.querySelector('.js-volume-label');
+                    const sets = exerciseCard.querySelectorAll('.js-set-row');
+                    if (trackingType === TRACKING_TYPE.DURATION) {
+                        let totalDuration = 0;
+                        sets.forEach((set) => { totalDuration += normalizeDurationSec(set.querySelector('.js-duration-input')?.value); });
+                        if (labelElement) labelElement.textContent = '時間';
+                        if (displayElement) displayElement.textContent = formatDuration(totalDuration);
+                        return;
+                    }
                     const LB_TO_KG = 0.45359237;
                     const KG_TO_LB = 2.20462262;
-                    const sets = exerciseCard.querySelectorAll('.js-set-row');
                     let totalVolumeInKg = 0;
                     let displayUnit = '公斤';
-
-                    if (sets.length > 0) {
-                        const firstUnitSelect = sets[0].querySelector('.js-unit-select');
-                        if (firstUnitSelect) {
-                            displayUnit = firstUnitSelect.value;
-                        }
-                    }
-
+                    if (sets.length > 0) displayUnit = sets[0].querySelector('.js-unit-select')?.value || '公斤';
                     sets.forEach(set => {
-                        const weightInput = set.querySelector('.js-weight-input');
-                        const repsInput = set.querySelector('.js-reps-input');
-                        const unitSelect = set.querySelector('.js-unit-select');
-                        
-                        let weight = parseFloat(weightInput.value) || 0;
-                        const reps = parseInt(repsInput.value) || 0;
-                        const currentUnit = unitSelect.value;
-
-                        if (currentUnit === '磅') {
-                            weight = weight * LB_TO_KG;
-                        }
-                        
+                        let weight = parseFloat(set.querySelector('.js-weight-input')?.value) || 0;
+                        const reps = parseInt(set.querySelector('.js-reps-input')?.value) || 0;
+                        const unit = set.querySelector('.js-unit-select')?.value || '公斤';
+                        if (unit === '磅') weight *= LB_TO_KG;
                         totalVolumeInKg += weight * reps;
                     });
+                    let displayVolume = displayUnit === '磅' ? totalVolumeInKg * KG_TO_LB : totalVolumeInKg;
+                    if (labelElement) labelElement.textContent = '容量';
+                    if (displayElement) displayElement.textContent = `${parseFloat(displayVolume.toFixed(2))} ${displayUnit}`;
+                },
 
-                    let displayVolume = totalVolumeInKg;
-                    if (displayUnit === '磅') {
-                        displayVolume = totalVolumeInKg * KG_TO_LB;
-                    }
-                    
-                    const displayElement = exerciseCard.querySelector('.js-volume-display');
-                    if (displayElement) {
-                        const finalVolume = parseFloat(displayVolume.toFixed(2));
-                        displayElement.textContent = `${finalVolume} ${displayUnit}`;
-                    }
+                getExerciseMetadata(name) {
+                    const motion = String(name || '').trim();
+                    if (!motion) return null;
+                    const cachedCatalog = app.state.cache.exerciseCatalog;
+                    const catalog = Array.isArray(cachedCatalog) && cachedCatalog.length > 0
+                        ? cachedCatalog
+                        : (app.state.classify.catalog || []);
+                    return catalog.find((item) => item.motion === motion) || null;
+                },
+
+                applyTrackingTypeToSet(setRow, value) {
+                    if (!setRow) return;
+                    const trackingType = normalizeTrackingType(value);
+                    setRow.dataset.trackingType = trackingType;
+                    setRow.querySelector('.js-weight-reps-inputs')?.classList.toggle('hidden', trackingType !== TRACKING_TYPE.WEIGHT_REPS);
+                    setRow.querySelector('.js-duration-inputs')?.classList.toggle('hidden', trackingType !== TRACKING_TYPE.DURATION);
+                },
+
+                applyTrackingTypeToCard(card, value, metadata = null) {
+                    if (!card) return;
+                    const trackingType = normalizeTrackingType(value);
+                    card.dataset.trackingType = trackingType;
+                    if (metadata?.exerciseId) card.dataset.exerciseId = metadata.exerciseId;
+                    card.querySelectorAll('.js-set-row').forEach((setRow) => this.applyTrackingTypeToSet(setRow, trackingType));
+                    this.calculateVolume(card);
+                },
+
+                applyTrackingMetadataToWorkout(root = document) {
+                    root.querySelectorAll?.('#workout-list .card').forEach((card) => {
+                        const motion = card.querySelector('h3')?.textContent?.trim() || '';
+                        const metadata = this.getExerciseMetadata(motion);
+                        this.applyTrackingTypeToCard(card, metadata?.trackingType || card.dataset.trackingType, metadata);
+                    });
                 },
 
                 resizeWorkoutNote(textarea) {
@@ -1268,13 +1261,14 @@ export const methods = {
                 },
 
                 // 輔助函式：專門用來從模板創建一個「組」元素
-                createSetElement(setNumber) {
+                createSetElement(setNumber, trackingType = TRACKING_TYPE.WEIGHT_REPS) {
                     const template = document.getElementById('set-row-template');
                     const newSet = document.importNode(template.content, true); // 複製模板
                     
                     // 填入組別編號
                     newSet.querySelector('.js-set-number').textContent = `SET ${setNumber}`;
                     this.applySetTypeToToggle(newSet.querySelector('.js-set-type-toggle'), SET_TYPE.WORKING);
+                    this.applyTrackingTypeToSet(newSet.querySelector('.js-set-row'), trackingType);
                     return newSet;
                 },
                 
@@ -1282,41 +1276,33 @@ export const methods = {
                     const setsContainer = exerciseCard.querySelector('.js-sets-container');
                     const allSets = setsContainer.querySelectorAll('.js-set-row');
                     const setNumber = allSets.length + 1;
-
-                    // (新功能) 獲取上一組的數據
+                    const trackingType = normalizeTrackingType(exerciseCard.dataset.trackingType);
                     let lastWeight = '';
                     let lastUnit = '公斤';
+                    let lastDuration = '';
                     let lastSetType = 'working';
                     if (allSets.length > 0) {
                         const lastSet = allSets[allSets.length - 1];
-                        lastWeight = lastSet.querySelector('.js-weight-input').value;
-                        lastUnit = lastSet.querySelector('.js-unit-select').value;
+                        lastWeight = lastSet.querySelector('.js-weight-input')?.value || '';
+                        lastUnit = lastSet.querySelector('.js-unit-select')?.value || '公斤';
+                        lastDuration = lastSet.querySelector('.js-duration-input')?.value || '';
                         lastSetType = normalizeSetType(lastSet.querySelector('.js-set-type-toggle')?.dataset.setType);
                     }
-
-                    const newSetElement = this.createSetElement(setNumber);
+                    const newSetElement = this.createSetElement(setNumber, trackingType);
                     newSetElement.firstElementChild.classList.add('animated-item', 'fade-in');
-                    
-                    // (新功能) 將數據填入新的一組
-                    newSetElement.querySelector('.js-weight-input').value = lastWeight;
-                    newSetElement.querySelector('.js-unit-select').value = lastUnit;
-                    const newSetTypeToggle = newSetElement.querySelector('.js-set-type-toggle');
-                    this.applySetTypeToToggle(newSetTypeToggle, lastSetType);
-                    
+                    if (newSetElement.querySelector('.js-weight-input')) newSetElement.querySelector('.js-weight-input').value = lastWeight;
+                    if (newSetElement.querySelector('.js-unit-select')) newSetElement.querySelector('.js-unit-select').value = lastUnit;
+                    if (newSetElement.querySelector('.js-duration-input')) newSetElement.querySelector('.js-duration-input').value = lastDuration;
+                    this.applySetTypeToToggle(newSetElement.querySelector('.js-set-type-toggle'), lastSetType);
                     setsContainer.appendChild(newSetElement);
                     const addedSet = setsContainer.querySelector('.js-set-row:last-child');
-                    if(addedSet) {
-                        setTimeout(() => addedSet.classList.add('is-visible'), 10);
-                    }
-
+                    if (addedSet) setTimeout(() => addedSet.classList.add('is-visible'), 10);
                     this.calculateVolume(exerciseCard);
                     this.updateDailyTotalVolume();
-                    
-                    // (新功能) 自動將焦點移至新組的「次數」輸入框，方便快速輸入
-                    const newRepsInput = setsContainer.querySelector('.js-set-row:last-child .js-reps-input');
-                    if (newRepsInput) {
-                        newRepsInput.focus();
-                    }
+                    const focusInput = trackingType === TRACKING_TYPE.DURATION
+                        ? setsContainer.querySelector('.js-set-row:last-child .js-duration-input')
+                        : setsContainer.querySelector('.js-set-row:last-child .js-reps-input');
+                    if (focusInput) focusInput.focus();
                 },
 
                 deleteSet(setRow) {
@@ -1366,7 +1352,10 @@ export const methods = {
                     this.renderExerciseFilterChips();
                     if (!app.state.classify.catalog || app.state.classify.catalog.length === 0) {
                         app.api.getExerciseCatalog(app.state.user.currentUser)
-                            .then(catalog => { app.state.classify.catalog = catalog; })
+                            .then(catalog => {
+                                app.state.classify.catalog = catalog;
+                                app.state.cache.exerciseCatalog = catalog;
+                            })
                             .catch(() => { /* 目錄載入失敗時僅停用篩選，不影響打字新增 */ });
                     }
                 },
@@ -1507,43 +1496,37 @@ export const methods = {
                 addExercise(name) {
                     const workoutList = document.getElementById('workout-list');
                     if (!workoutList) return;
-                    
-                    // 1. 取得並複製 "動作卡片" 模板
+                    const metadata = this.getExerciseMetadata(name);
+                    const trackingType = normalizeTrackingType(metadata?.trackingType);
                     const template = document.getElementById('exercise-card-template');
                     const newCardFragment = document.importNode(template.content, true);
-                    
-                    // 2. 取得卡片根元素並設定動態內容
                     const cardElement = newCardFragment.querySelector('.card');
-                    const cardId = 'exercise-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
-                    cardElement.id = cardId;
+                    cardElement.id = 'exercise-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
                     cardElement.classList.add('animated-item', 'fade-in');
                     cardElement.querySelector('h3').textContent = name;
-                    
-                    // 3. 在卡片中新增第一組
-                    const setsContainer = cardElement.querySelector('.js-sets-container');
-                    const firstSetElement = this.createSetElement(1);
-                    setsContainer.appendChild(firstSetElement);
-
-                    // 4. 將完成的卡片加到畫面上
+                    cardElement.dataset.trackingType = trackingType;
+                    if (metadata?.exerciseId) cardElement.dataset.exerciseId = metadata.exerciseId;
+                    cardElement.querySelector('.js-sets-container').appendChild(this.createSetElement(1, trackingType));
                     workoutList.appendChild(newCardFragment);
-                    setTimeout(() => {
-                        cardElement.classList.add('is-visible');
-                    }, 10);
-
-                    // 5. (邏輯不變) 查詢上次表現
+                    setTimeout(() => cardElement.classList.add('is-visible'), 10);
                     const performanceEl = cardElement.querySelector('.js-last-performance');
                     app.api.getLatestPerformance(name, app.state.user.currentUser).then(data => {
-                      if (data && data.weight_kg != null && data.reps != null) { // 檢查 weight_kg 和 reps 是否存在
-                        //performanceEl.innerHTML = `上次: <span class="font-bold">${data.weight_kg} kg(${data.weight_lbs} lbs) x ${data.reps} 次</span>`;
+                      if (trackingType === TRACKING_TYPE.DURATION) {
+                        if (data?.tracking_type === TRACKING_TYPE.DURATION && data.duration_sec > 0) {
+                          performanceEl.innerHTML = `上次: <span class="font-bold">${formatDuration(data.duration_sec)}</span>`;
+                        } else {
+                          performanceEl.textContent = '無時間紀錄';
+                        }
+                      } else if (data && data.weight_kg != null && data.reps != null) {
                         performanceEl.innerHTML = `上次: <span class="font-bold">${data.weight_kg} kg x ${data.reps} 次</span>`;
                       } else {
-                        performanceEl.textContent = '無歷史紀錄'; //
+                        performanceEl.textContent = '無歷史紀錄';
                       }
                     }).catch(err => {
                       performanceEl.textContent = '查詢失敗';
                       this.handleError(err, `查詢 ${name} 上次表現失敗`);
                     });
-
+                    this.calculateVolume(cardElement);
                     this.updateDailyTotalVolume();
                 },
 
@@ -1560,7 +1543,8 @@ export const methods = {
                     // 讀取最後一組的數據
                     const lastWeight = lastSet.querySelector('.js-weight-input').value;
                     const lastReps = lastSet.querySelector('.js-reps-input').value;
-                    const lastUnit = lastSet.querySelector('.js-unit-select').value;
+                    const lastUnit = lastSet.querySelector('.js-unit-select')?.value || '公斤';
+                    const lastDuration = lastSet.querySelector('.js-duration-input')?.value || '';
                     const lastSetType = normalizeSetType(lastSet.querySelector('.js-set-type-toggle')?.dataset.setType);
                     
                     // 先新增一個空白組
@@ -1573,6 +1557,8 @@ export const methods = {
                         newSet.querySelector('.js-weight-input').value = lastWeight;
                         newSet.querySelector('.js-reps-input').value = lastReps;
                         newSet.querySelector('.js-unit-select').value = lastUnit;
+                        const durationInput = newSet.querySelector('.js-duration-input');
+                        if (durationInput) durationInput.value = lastDuration;
                         const newSetTypeToggle = newSet.querySelector('.js-set-type-toggle');
                         this.applySetTypeToToggle(newSetTypeToggle, lastSetType);
                     }

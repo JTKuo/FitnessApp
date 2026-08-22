@@ -406,17 +406,25 @@ function _writeNewLog(sheet, date, workoutData, savedAdminComments) {
       const setFields = _resolveWorkoutLogV3SetFields(set, exerciseMetadata);
       if (setFields.setType === 'working') workingSetCount += 1;
 
-      // Keep the legacy calculations byte-for-byte equivalent for old payloads.
-      const weight_kg = set.weight_in_kg;
-      const weight_lbs = (set.unit === '磅')
-        ? set.weight
-        : parseFloat((set.weight * KG_TO_LB).toFixed(2));
-      const volume = weight_kg * set.reps;
+      // Duration sets use V3 DurationSec and deliberately leave legacy weight/reps blank.
+      // Weight/reps payloads retain the previous calculations exactly.
+      let legacyReps = '';
+      let weight_kg = '';
+      let weight_lbs = '';
+      let volume = 0;
+      if (setFields.trackingType === 'weight_reps') {
+        legacyReps = set.reps;
+        weight_kg = set.weight_in_kg;
+        weight_lbs = (set.unit === '磅')
+          ? set.weight
+          : parseFloat((set.weight * KG_TO_LB).toFixed(2));
+        volume = weight_kg * set.reps;
+      }
       exerciseTotalVolume += volume;
 
       const note = index === 0 ? set.note : '';
       const adminComment = index === 0 ? adminCommentForMotion : '';
-      const legacyRow = ['', motionName, index + 1, set.reps, weight_kg, weight_lbs, volume, note, adminComment];
+      const legacyRow = ['', motionName, index + 1, legacyReps, weight_kg, weight_lbs, volume, note, adminComment];
       allRowsToWrite.push(withV3Fields(legacyRow, setFields));
     });
 
