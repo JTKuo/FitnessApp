@@ -1504,16 +1504,8 @@ function getExerciseCatalog(authedEmail, requestedEmail) {
   if (!userSheet) return [];
 
   const infoMap = _getExerciseInfoMap(userSheet);
-  let metadataMap = new Map();
-  try {
-    metadataMap = _getExerciseMetadataMap(userSheet);
-  } catch (e) {
-    Logger.log('ExerciseMaster metadata read failed; catalog will use conservative defaults: ' + e.message);
-  }
-
   const motions = new Set();
   infoMap.forEach(function (_info, motion) { motions.add(motion); });
-  metadataMap.forEach(function (_info, motion) { motions.add(motion); });
 
   // 併入 WorkoutLog 中實際練過的動作
   const logSheet = userSheet.getSheetByName(CONSTANTS.SHEETS.WORKOUT_LOG);
@@ -1530,18 +1522,10 @@ function getExerciseCatalog(authedEmail, requestedEmail) {
   const catalog = [];
   motions.forEach(function (motion) {
     const info = infoMap.get(motion);
-    const metadata = metadataMap.get(motion);
     catalog.push({
       motion: motion,
-      category: metadata ? metadata.category : (info ? info.category : ''),
-      tags: metadata ? metadata.tags : (info ? info.tags : []),
-      exerciseId: metadata ? metadata.exerciseId : '',
-      trackingType: metadata ? metadata.trackingType : 'weight_reps',
-      loadMode: metadata ? metadata.loadMode : 'total',
-      laterality: metadata ? metadata.laterality : 'bilateral',
-      defaultRestSec: metadata ? metadata.defaultRestSec : 30,
-      demoMedia: metadata ? metadata.demoMedia : '',
-      active: metadata ? metadata.active : true
+      category: info ? info.category : '',
+      tags: info ? info.tags : []
     });
   });
   catalog.sort(function (a, b) { return a.motion.localeCompare(b.motion, 'zh-Hant'); });

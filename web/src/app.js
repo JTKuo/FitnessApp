@@ -9,7 +9,6 @@ import { workoutDraft } from './workout-draft.js';
 import { restTimer } from './rest-timer.js';
 import { workoutNumericInput } from './workout-numeric-input.js';
 import { workoutSession } from './workout-session.js';
-import { flexibleSet } from './flexible-set.js';
 
 export const app = {
     cache,
@@ -17,7 +16,6 @@ export const app = {
     restTimer,
     workoutNumericInput,
     workoutSession,
-    flexibleSet,
     state: initialState,
 
             init() {
@@ -27,18 +25,10 @@ export const app = {
                 // Session-level UI 必須先建立，Workout Draft 才能一起監聽/恢復全日備註。
                 this.workoutSession.init();
 
-                // Flexible Set 以 ExerciseMaster metadata 裝飾每一組；catalog 尚未載入時保守維持 weight/reps。
-                this.flexibleSet.init({
-                    getCurrentUser: () => this.state.user.currentUser,
-                    getExerciseCatalog: (userEmail) => this.api.getExerciseCatalog(userEmail),
-                });
-
-                // 先沿用既有 weight/reps collector，再補 duration / SetType / TrackingType 等 V3 欄位，
-                // 最後附加 session metadata。舊 API 簽名與 PR 流程保持不變。
+                // 保留既有 collectWorkoutData() 的資料格式，再附加 session metadata。
+                // processWorkoutForPRs() 會忽略額外欄位，因此不需要改 PR 流程或 API 簽名。
                 const collectWorkoutDataBase = this.methods.collectWorkoutData.bind(this.methods);
-                this.methods.collectWorkoutData = () => this.workoutSession.enrichWorkoutData(
-                    this.flexibleSet.enrichWorkoutData(collectWorkoutDataBase())
-                );
+                this.methods.collectWorkoutData = () => this.workoutSession.enrichWorkoutData(collectWorkoutDataBase());
 
                 this.workoutDraft.init({
                     getCurrentUser: () => this.state.user.currentUser,
@@ -55,7 +45,7 @@ export const app = {
                     getCurrentUser: () => this.state.user.currentUser,
                     defaultRestSeconds: APP_CONSTANTS.WORKOUT.DEFAULT_REST_TIME,
                     onFinished: () => this.ui.showToast('休息結束！'),
-                    onInvalidComplete: () => this.ui.showToast('請先輸入這一組的重量、次數或時間。', 'error')
+                    onInvalidComplete: () => this.ui.showToast('請先輸入這一組的重量或次數。', 'error')
                 });
 
                 this.workoutNumericInput.init();
@@ -90,9 +80,6 @@ export const app = {
                     this.state.ui.shouldShowReminder = profile.shouldShowReminder;
                     this.state.cache.workoutTemplates = templates;
                     this.state.cache.exerciseNameList = exerciseNames;
-
-                    // 非阻塞載入 ExerciseMaster metadata；使用者真正進訓練頁前通常已完成。
-                    this.flexibleSet.loadCatalog(profile.email);
 
                     this.ui.populateProfileData(profile.profileData);
                     this.methods.loadInBodyRecords();

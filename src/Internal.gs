@@ -339,108 +339,52 @@ function _writeNewLog(sheet, date, workoutData, savedAdminComments) {
   const userSheet = sheet.getParent();
   const sessionId = _resolveWorkoutSessionId(userSheet, date);
   const sessionNote = workoutData.length > 0 ? String(workoutData[0].session_note || '') : '';
+  const sessionIdColumn = _ensureWorkoutLogSessionIdHeader(sheet); // 1-based
+  const totalColumns = Math.max(9, sessionIdColumn);
 
-  // New motions should receive a stable ExerciseId on their very first save.
-  // Registration/migration remains best-effort so taxonomy problems never block the workout itself.
-  try {
-    _ensureExercisesRegistered(
-      userSheet.getName(),
-      userSheet,
-      workoutData.map(function (set) { return set.motion; })
-    );
-  } catch (e) {
-    Logger.log('Pre-write exercise registration failed; workout save will continue: ' + e.message);
-  }
-
-  let exerciseMetadataMap = new Map();
-  try {
-    exerciseMetadataMap = _getExerciseMetadataMap(userSheet);
-  } catch (e) {
-    Logger.log('Exercise metadata unavailable; flexible rows will use conservative defaults: ' + e.message);
-  }
-
-  const headerMap = _ensureWorkoutLogFlexibleHeaders(sheet);
-  const totalColumns = sheet.getLastColumn();
-
-  workoutData.forEach(function (set) {
-    if (!exercises[set.motion]) exercises[set.motion] = [];
-    exercises[set.motion].push(set);
+  const withSessionId = function (baseRow) {
+    const row = baseRow.slice();
+    while (row.length < totalColumns) row.push('');
+    row[sessionIdColumn - 1] = sessionId;
+    return row;
+  };
+  
+  workoutData.forEach(set => {
+      if (!exercises[set.motion]) {
+        exercises[set.motion] = [];
+      }
+      exercises[set.motion].push(set);
   });
-
-  allRowsToWrite.push(
-    _withWorkoutLogV3Fields([date, '', '', '', '', '', '', '', ''], totalColumns, headerMap, sessionId, null)
-  );
+  
+  allRowsToWrite.push(withSessionId([date, '', '', '', '', '', '', '', ''])); // 日期列
 
   let dailyTotalVolume = 0;
-  let workingSetCount = 0;
-
   for (const motionName in exercises) {
     const sets = exercises[motionName];
-    const exerciseMetadata = exerciseMetadataMap.get(motionName) || null;
     let exerciseTotalVolume = 0;
+    
     const adminCommentForMotion = savedAdminComments.get(motionName) || '';
 
-    sets.forEach(function (set, index) {
-      const setMetadata = _resolveFlexibleSetMetadata(set, exerciseMetadata);
-      if (setMetadata.setType === 'working') workingSetCount += 1;
-
-      const isDuration = setMetadata.trackingType === 'duration';
-      const weightKgNumber = Number(set.weight_in_kg);
-      const repsNumber = Number(set.reps);
-      const weightNumber = Number(set.weight);
-      const weight_kg = !isDuration && isFinite(weightKgNumber) ? weightKgNumber : '';
-      const reps = !isDuration && isFinite(repsNumber) ? repsNumber : '';
-      let weight_lbs = '';
-
-      if (!isDuration) {
-        if (set.unit === '磅') {
-          weight_lbs = isFinite(weightNumber) ? weightNumber : 0;
-        } else {
-          weight_lbs = isFinite(weightNumber) ? parseFloat((weightNumber * KG_TO_LB).toFixed(2)) : 0;
-        }
-      }
-
-      const volume = _canCalculateLegacyVolume(setMetadata)
-        ? (Number(weight_kg) || 0) * (Number(reps) || 0)
-        : 0;
+    sets.forEach((set, index) => {
+      const weight_kg = set.weight_in_kg;
+      const weight_lbs = (set.unit === '磅') ? set.weight : parseFloat((set.weight * KG_TO_LB).toFixed(2));
+      const volume = weight_kg * set.reps;
       exerciseTotalVolume += volume;
+      
+      const note = (index === 0) ? set.note : '';
+      const adminComment = (index === 0) ? adminCommentForMotion : '';
 
-      const note = index === 0 ? set.note : '';
-      const adminComment = index === 0 ? adminCommentForMotion : '';
-      const legacyRow = ['', motionName, index + 1, reps, weight_kg, weight_lbs, volume, note, adminComment];
-      const rowData = _withWorkoutLogV3Fields(
-        legacyRow,
-        totalColumns,
-        headerMap,
-        sessionId,
-        setMetadata
-      );
+      const rowData = withSessionId(['', motionName, index + 1, set.reps, weight_kg, weight_lbs, volume, note, adminComment]);
       allRowsToWrite.push(rowData);
     });
-
-    // Legacy summary rows remain until all readers have migrated to V3 fields.
-    allRowsToWrite.push(
-      _withWorkoutLogV3Fields(
-        ['', '', '', '', '', '動作總結', exerciseTotalVolume, '', ''],
-        totalColumns,
-        headerMap,
-        sessionId,
-        null
-      )
-    );
+    
+    // 舊 summary rows 暫時保留，待所有讀取端完成 V3 migration 後再停止產生。
+    allRowsToWrite.push(withSessionId(['', '', '', '', '', '動作總結', exerciseTotalVolume, '', '']));
     dailyTotalVolume += exerciseTotalVolume;
   }
 
-  allRowsToWrite.push(
-    _withWorkoutLogV3Fields(
-      ['', '', '', '', '', '本日總結', dailyTotalVolume, '', ''],
-      totalColumns,
-      headerMap,
-      sessionId,
-      null
-    )
-  );
-
+  allRowsToWrite.push(withSessionId(['', '', '', '', '', '本日總結', dailyTotalVolume, '', '']));
+  
   if (allRowsToWrite.length > 0) {
     const numRows = allRowsToWrite.length;
     const numCols = allRowsToWrite[0].length;
@@ -449,12 +393,15 @@ function _writeNewLog(sheet, date, workoutData, savedAdminComments) {
     sheet.insertRows(insertionRow, numRows);
     sheet.getRange(insertionRow, 1, numRows, numCols).setValues(allRowsToWrite);
 
+    // WorkoutLog 成功寫入後才 materialize session summary。
+    // 若此步驟失敗，整個 API 回錯；下一次重送仍會先清除同日 log，因此不會 duplicate。
     _upsertWorkoutSession(userSheet, {
       sessionId: sessionId,
       date: date,
       sessionNote: sessionNote,
       totalVolume: dailyTotalVolume,
-      workingSets: workingSetCount
+      // SetType 尚未加入前，所有目前可儲存的 set 都視為 working set。
+      workingSets: workoutData.length
     });
   }
 }

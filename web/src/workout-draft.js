@@ -68,9 +68,6 @@ function collectDraftPayload() {
         weight: set.querySelector('.js-weight-input')?.value || '',
         reps: set.querySelector('.js-reps-input')?.value || '',
         unit: set.querySelector('.js-unit-select')?.value || '公斤',
-        setType: set.querySelector('.js-set-type')?.value || set.dataset.setType || 'working',
-        durationSec: set.querySelector('.js-duration-input')?.value || set.dataset.durationSec || '',
-        trackingType: set.dataset.trackingType || 'weight_reps',
       }));
 
       return { name, note, sets };
@@ -114,7 +111,6 @@ function createSetFragment(setData, setNumber) {
   if (!template) return null;
 
   const fragment = document.importNode(template.content, true);
-  const setRow = fragment.querySelector('.js-set-row');
   const setNumberEl = fragment.querySelector('.js-set-number');
   const weightInput = fragment.querySelector('.js-weight-input');
   const repsInput = fragment.querySelector('.js-reps-input');
@@ -124,11 +120,6 @@ function createSetFragment(setData, setNumber) {
   if (weightInput) weightInput.value = setData?.weight ?? '';
   if (repsInput) repsInput.value = setData?.reps ?? '';
   if (unitSelect) unitSelect.value = setData?.unit || '公斤';
-  if (setRow) {
-    setRow.dataset.setType = setData?.setType === 'warmup' ? 'warmup' : 'working';
-    setRow.dataset.durationSec = setData?.durationSec ?? '';
-    setRow.dataset.trackingType = setData?.trackingType || 'weight_reps';
-  }
 
   return fragment;
 }
@@ -158,7 +149,7 @@ function createExerciseCard(exercise) {
     setsContainer.innerHTML = '';
     const sets = Array.isArray(exercise.sets) && exercise.sets.length > 0
       ? exercise.sets
-      : [{ weight: '', reps: '', unit: '公斤', setType: 'working', durationSec: '' }];
+      : [{ weight: '', reps: '', unit: '公斤' }];
 
     sets.forEach((setData, index) => {
       const setFragment = createSetFragment(setData, index + 1);
