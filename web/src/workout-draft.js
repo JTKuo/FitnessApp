@@ -120,7 +120,7 @@ function createSetFragment(setData, setNumber) {
   const unitSelect = fragment.querySelector('.js-unit-select');
   const setTypeToggle = fragment.querySelector('.js-set-type-toggle');
 
-  if (setNumberEl) setNumberEl.textContent = String(setNumber);
+  if (setNumberEl) setNumberEl.textContent = `SET ${setNumber}`;
   if (weightInput) weightInput.value = setData?.weight ?? '';
   if (repsInput) repsInput.value = setData?.reps ?? '';
   if (unitSelect) unitSelect.value = setData?.unit || '公斤';
@@ -129,7 +129,7 @@ function createSetFragment(setData, setNumber) {
     const isWarmup = setType === 'warmup';
     setTypeToggle.dataset.setType = setType;
     setTypeToggle.setAttribute('aria-pressed', isWarmup ? 'true' : 'false');
-    setTypeToggle.setAttribute('aria-label', isWarmup ? '目前為熱身組，點擊切換為工作組' : '目前為工作組，點擊切換為熱身組');
+    setTypeToggle.setAttribute('aria-label', isWarmup ? '目前為熱身組，點擊切換為訓練組' : '目前為訓練組，點擊切換為熱身組');
   }
 
   return fragment;

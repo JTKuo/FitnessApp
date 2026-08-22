@@ -1237,7 +1237,7 @@ export const methods = {
                     button.setAttribute('aria-pressed', isWarmup ? 'true' : 'false');
                     button.setAttribute(
                         'aria-label',
-                        isWarmup ? '目前為熱身組，點擊切換為工作組' : '目前為工作組，點擊切換為熱身組'
+                        isWarmup ? '目前為熱身組，點擊切換為訓練組' : '目前為訓練組，點擊切換為熱身組'
                     );
                 },
 
@@ -1255,7 +1255,7 @@ export const methods = {
                     const newSet = document.importNode(template.content, true); // 複製模板
                     
                     // 填入組別編號
-                    newSet.querySelector('.js-set-number').textContent = String(setNumber);
+                    newSet.querySelector('.js-set-number').textContent = `SET ${setNumber}`;
                     this.applySetTypeToToggle(newSet.querySelector('.js-set-type-toggle'), SET_TYPE.WORKING);
                     return newSet;
                 },

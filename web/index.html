@@ -738,13 +738,9 @@
                     <ion-icon name="timer-outline" class="text-lg pointer-events-none"></ion-icon>
                     <span>休息</span>
                 </button>
-                <button class="js-copy-set workout-action workout-action-secondary" type="button">
-                    <ion-icon name="copy-outline" class="text-lg pointer-events-none"></ion-icon>
-                    <span>複製</span>
-                </button>
                 <button class="js-add-set workout-action workout-action-secondary" type="button">
                     <ion-icon name="add-outline" class="text-xl pointer-events-none"></ion-icon>
-                    <span>新增組</span>
+                    <span>新增一組</span>
                 </button>
             </div>
         </div>
@@ -754,12 +750,12 @@
         <div class="js-set-row workout-set-row relative">
             <span class="js-pr-badge hidden absolute -left-1 -top-1 z-10 rounded-full bg-yellow-400 px-2 py-0.5 text-xs font-bold text-black shadow-md animate-pulse"></span>
 
-            <div class="workout-set-meta">
-                <span class="js-set-number workout-set-number">1</span>
-                <button type="button" class="js-set-type-toggle workout-set-type-toggle" data-set-type="working" aria-pressed="false" aria-label="目前為工作組，點擊切換為熱身組">
+            <div class="workout-set-meta-shell">
+                <span class="js-set-number workout-set-number">SET 1</span>
+                <button type="button" class="js-set-type-toggle workout-set-type-toggle" data-set-type="working" aria-pressed="false" aria-label="目前為訓練組，點擊切換為熱身組">
                     <span class="set-type-working inline-flex items-center gap-1">
-                        <ion-icon name="ellipse-outline" class="text-xs pointer-events-none"></ion-icon>
-                        <span>工作</span>
+                        <ion-icon name="barbell-outline" class="text-sm pointer-events-none"></ion-icon>
+                        <span>訓練</span>
                     </span>
                     <span class="set-type-warmup inline-flex items-center gap-1">
                         <ion-icon name="flame-outline" class="text-sm pointer-events-none"></ion-icon>
@@ -769,7 +765,7 @@
             </div>
 
             <div class="workout-set-inputs">
-                <div class="workout-number-field">
+                <div class="workout-number-field workout-weight-field">
                     <input type="number" min="0" class="js-weight-input workout-set-input" aria-label="重量">
                     <select class="js-unit-select workout-unit-select" aria-label="重量單位">
                         <option value="公斤">kg</option>
@@ -779,15 +775,17 @@
 
                 <span class="workout-multiply" aria-hidden="true">×</span>
 
-                <div class="workout-number-field">
+                <div class="workout-number-field workout-reps-field">
                     <input type="number" min="0" class="js-reps-input workout-set-input" aria-label="次數">
                     <span class="workout-field-suffix">次</span>
                 </div>
             </div>
 
-            <button class="js-delete-set workout-icon-button workout-delete-set" type="button" aria-label="刪除此組">
-                <ion-icon name="trash-outline" class="text-lg pointer-events-none"></ion-icon>
-            </button>
+            <div class="workout-set-actions" aria-label="組別操作">
+                <button class="js-delete-set workout-icon-button workout-delete-set" type="button" aria-label="刪除此組">
+                    <ion-icon name="trash-outline" class="text-lg pointer-events-none"></ion-icon>
+                </button>
+            </div>
         </div>
     </template>
 
