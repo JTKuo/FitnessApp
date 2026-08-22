@@ -32,7 +32,10 @@ export const app = {
 
                 this.workoutDraft.init({
                     getCurrentUser: () => this.state.user.currentUser,
-                    onRestored: () => this.ui.showToast('已恢復未完成的訓練草稿。'),
+                    onRestored: () => {
+                        this.methods.resizeWorkoutNotes();
+                        this.ui.showToast('已恢復未完成的訓練草稿。');
+                    },
                     recalculateVolumes: () => {
                         document.querySelectorAll('#workout-list .card').forEach(card => {
                             this.methods.calculateVolume(card);
