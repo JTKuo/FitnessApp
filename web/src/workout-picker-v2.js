@@ -3,6 +3,8 @@ import { openNewExerciseSetup } from './new-exercise-setup.js';
 
 const DEFAULT_VISIBLE_LIMIT = 36;
 const RECENT_VISIBLE_LIMIT = 6;
+const FAVORITE_VISIBLE_LIMIT = 8;
+const FAVORITE_RUNTIME_TAG = '__fitnessapp_favorite__';
 const EQUIPMENT_TAG_ORDER = ['槓鈴', '啞鈴', '機械', '滑輪', '自體重量', '壺鈴', '彈力帶'];
 const MOVEMENT_TAG_ORDER = ['推', '拉', '蹲', '髖鉸鏈'];
 const TYPE_TAG_ORDER = ['複合', '單關節'];
@@ -19,17 +21,32 @@ function isActiveCatalogItem(item) {
     return true;
 }
 
+function isFavoriteValue(value) {
+    if (value === true || value === 1) return true;
+    const normalized = String(value || '').trim().toLowerCase();
+    return normalized === 'true' || normalized === '1' || normalized === 'yes';
+}
+
+function normalizeTags(value) {
+    return Array.isArray(value)
+        ? value.map(tag => String(tag || '').trim()).filter(Boolean)
+        : String(value || '').split(',').map(tag => tag.trim()).filter(Boolean);
+}
+
 export function normalizePickerCatalog(catalog) {
     return (Array.isArray(catalog) ? catalog : [])
         .filter(isActiveCatalogItem)
-        .map(item => ({
-            ...item,
-            motion: String(item.motion || '').trim(),
-            category: String(item.category || '').trim(),
-            tags: Array.isArray(item.tags)
-                ? item.tags.map(tag => String(tag || '').trim()).filter(Boolean)
-                : String(item.tags || '').split(',').map(tag => tag.trim()).filter(Boolean),
-        }));
+        .map(item => {
+            const rawTags = normalizeTags(item.tags);
+            const favorite = isFavoriteValue(item.favorite) || rawTags.includes(FAVORITE_RUNTIME_TAG);
+            return {
+                ...item,
+                motion: String(item.motion || '').trim(),
+                category: String(item.category || '').trim(),
+                tags: rawTags.filter(tag => tag !== FAVORITE_RUNTIME_TAG),
+                favorite,
+            };
+        });
 }
 
 function orderedValues(values, preferredOrder) {
@@ -102,9 +119,30 @@ export function resolveRecentPickerExercises(catalog, recentNames, limit = RECEN
     return result;
 }
 
+export function resolveFavoritePickerExercises(catalog, limit = FAVORITE_VISIBLE_LIMIT) {
+    return normalizePickerCatalog(catalog)
+        .filter(item => item.favorite)
+        .sort((a, b) => a.motion.localeCompare(b.motion, 'zh-Hant'))
+        .slice(0, Math.max(1, Number(limit) || FAVORITE_VISIBLE_LIMIT));
+}
+
+export function buildFavoriteMetadataPayload(item, favorite) {
+    const normalized = normalizePickerCatalog([item])[0];
+    if (!normalized) return null;
+    return {
+        motion: normalized.motion,
+        trackingType: normalized.trackingType || 'weight_reps',
+        loadMode: normalized.trackingType === 'duration' ? 'total' : (normalized.loadMode || 'total'),
+        laterality: normalized.laterality || 'bilateral',
+        defaultRestSec: Number(normalized.defaultRestSec) || 30,
+        favorite: !!favorite,
+    };
+}
+
 function pickerState(app) {
     if (!app.state.exercisePicker) app.state.exercisePicker = { category: '', tag: '', tagOpen: false };
     if (typeof app.state.exercisePicker.tagOpen !== 'boolean') app.state.exercisePicker.tagOpen = false;
+    if (!app.state.exercisePicker.favoritePending) app.state.exercisePicker.favoritePending = {};
     return app.state.exercisePicker;
 }
 
@@ -119,6 +157,31 @@ function getRecentNames(app) {
 function bumpRecentName(app, motion) {
     const current = getRecentNames(app).filter(name => name !== motion);
     app.state.cache.recentExerciseNames = [motion, ...current].slice(0, 8);
+}
+
+function updateRawCatalogFavorite(catalog, motion, favorite) {
+    if (!Array.isArray(catalog)) return [];
+    return catalog.map(item => {
+        if (String(item?.motion || '').trim() !== motion) return item;
+        const cleanTags = normalizeTags(item.tags).filter(tag => tag !== FAVORITE_RUNTIME_TAG);
+        if (favorite) cleanTags.push(FAVORITE_RUNTIME_TAG);
+        return { ...item, favorite: !!favorite, tags: cleanTags };
+    });
+}
+
+function setCatalogFavorite(app, motion, favorite) {
+    app.state.cache.exerciseCatalog = updateRawCatalogFavorite(app.state.cache.exerciseCatalog || [], motion, favorite);
+    app.state.classify.catalog = updateRawCatalogFavorite(app.state.classify.catalog || [], motion, favorite);
+}
+
+function mergeSavedMetadata(app, saved) {
+    if (!saved?.motion) return;
+    const apply = catalog => {
+        if (!Array.isArray(catalog)) return [];
+        return catalog.map(item => String(item?.motion || '').trim() === saved.motion ? { ...item, ...saved } : item);
+    };
+    app.state.cache.exerciseCatalog = apply(app.state.cache.exerciseCatalog || []);
+    app.state.classify.catalog = apply(app.state.classify.catalog || []);
 }
 
 function createChip(value, kind, active) {
@@ -271,7 +334,7 @@ function itemMeta(item) {
     return parts.join(' · ');
 }
 
-function renderExerciseItem(list, item, options = {}) {
+function createExerciseButton(item, options = {}) {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = `picker-exercise-item js-suggestion-item${options.create ? ' picker-create-item' : ''}`;
@@ -288,8 +351,32 @@ function renderExerciseItem(list, item, options = {}) {
         ? '建立新動作 · 可設定記錄方式、左右與休息'
         : itemMeta(item);
     button.appendChild(meta);
+    return button;
+}
 
-    list.appendChild(button);
+function renderExerciseItem(list, item, options = {}) {
+    if (options.create) {
+        list.appendChild(createExerciseButton(item, options));
+        return;
+    }
+
+    const row = document.createElement('div');
+    row.className = 'picker-exercise-row';
+    row.appendChild(createExerciseButton(item));
+
+    const favorite = document.createElement('button');
+    favorite.type = 'button';
+    favorite.className = `picker-favorite-toggle${item.favorite ? ' is-active' : ''}`;
+    favorite.dataset.pickerFavoriteMotion = item.motion;
+    favorite.setAttribute('aria-pressed', item.favorite ? 'true' : 'false');
+    favorite.setAttribute('aria-label', item.favorite ? `取消收藏 ${item.motion}` : `收藏 ${item.motion}`);
+    favorite.textContent = item.favorite ? '★' : '☆';
+    if (options.favoritePending) {
+        favorite.disabled = true;
+        favorite.setAttribute('aria-busy', 'true');
+    }
+    row.appendChild(favorite);
+    list.appendChild(row);
 }
 
 function renderEmpty(list, message) {
@@ -302,6 +389,13 @@ function renderEmpty(list, message) {
 function hasExactMotion(catalog, query) {
     const normalized = normalizeText(query);
     return catalog.some(item => normalizeText(item.motion) === normalized);
+}
+
+function renderCatalogItems(app, list, items) {
+    const state = pickerState(app);
+    items.forEach(item => renderExerciseItem(list, item, {
+        favoritePending: !!state.favoritePending[item.motion],
+    }));
 }
 
 function renderPicker(app) {
@@ -322,18 +416,28 @@ function renderPicker(app) {
         const recent = resolveRecentPickerExercises(catalog, recentNames);
         if (recent.length) {
             renderSectionTitle(list, '最近使用', recent.length);
-            recent.forEach(item => renderExerciseItem(list, item));
+            renderCatalogItems(app, list, recent);
         }
 
         const recentSet = new Set(recent.map(item => item.motion));
+        const favorites = resolveFavoritePickerExercises(catalog)
+            .filter(item => !recentSet.has(item.motion));
+        if (favorites.length) {
+            renderSectionTitle(list, '收藏', favorites.length);
+            renderCatalogItems(app, list, favorites);
+        }
+
+        const excluded = new Set([...recentSet, ...favorites.map(item => item.motion)]);
         const browse = filterPickerCatalog(catalog)
-            .filter(item => !recentSet.has(item.motion))
+            .filter(item => !excluded.has(item.motion))
             .slice(0, 12);
         if (browse.length) {
-            renderSectionTitle(list, recent.length ? '瀏覽動作' : '所有動作', catalog.length);
-            browse.forEach(item => renderExerciseItem(list, item));
+            renderSectionTitle(list, recent.length || favorites.length ? '瀏覽動作' : '所有動作', catalog.length);
+            renderCatalogItems(app, list, browse);
         }
-        if (!recent.length && !browse.length) renderEmpty(list, '尚無動作資料，可直接輸入名稱建立新動作。');
+        if (!recent.length && !favorites.length && !browse.length) {
+            renderEmpty(list, '尚無動作資料，可直接輸入名稱建立新動作。');
+        }
         return;
     }
 
@@ -348,7 +452,7 @@ function renderPicker(app) {
     if (state.category) titleParts.push(state.category);
     if (state.tag) titleParts.push(state.tag);
     renderSectionTitle(list, titleParts.join(' · ') || '符合條件', results.length);
-    results.slice(0, DEFAULT_VISIBLE_LIMIT).forEach(item => renderExerciseItem(list, item));
+    renderCatalogItems(app, list, results.slice(0, DEFAULT_VISIBLE_LIMIT));
 
     if (query && !hasExactMotion(catalog, query)) {
         renderExerciseItem(list, { motion: query, category: '', tags: [] }, { create: true });
@@ -357,11 +461,46 @@ function renderPicker(app) {
     }
 }
 
+async function toggleFavorite(app, motion) {
+    const state = pickerState(app);
+    if (state.favoritePending[motion]) return;
+    const item = getCatalog(app).find(candidate => candidate.motion === motion);
+    if (!item) return;
+
+    const nextFavorite = !item.favorite;
+    const payload = buildFavoriteMetadataPayload(item, nextFavorite);
+    if (!payload) return;
+
+    state.favoritePending[motion] = true;
+    setCatalogFavorite(app, motion, nextFavorite);
+    renderPicker(app);
+
+    try {
+        const saved = await app.api.saveExerciseMetadata(payload, app.state.user.currentUser);
+        mergeSavedMetadata(app, saved);
+    } catch (error) {
+        setCatalogFavorite(app, motion, !nextFavorite);
+        app.ui.showToast(`收藏更新失敗：${error?.message || '請稍後再試'}`, 'error');
+    } finally {
+        delete state.favoritePending[motion];
+        renderPicker(app);
+    }
+}
+
 function installDelegatedEvents(app) {
     const list = document.getElementById('suggestions-list');
     if (list && !list.dataset.pickerV2Bound) {
         list.dataset.pickerV2Bound = '1';
         list.addEventListener('click', event => {
+            const favorite = event.target.closest('[data-picker-favorite-motion]');
+            if (favorite && list.contains(favorite)) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                const motion = String(favorite.dataset.pickerFavoriteMotion || '').trim();
+                if (motion) toggleFavorite(app, motion);
+                return;
+            }
+
             const item = event.target.closest('.js-suggestion-item');
             if (!item || !list.contains(item)) return;
             event.preventDefault();

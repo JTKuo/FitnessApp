@@ -19,7 +19,8 @@ const EXERCISE_MASTER_V2_HEADERS = [
   'Laterality',
   'DefaultRestSec',
   'DemoMedia',
-  'Active'
+  'Active',
+  'Favorite'
 ];
 
 const EXERCISE_MASTER_V2_DEFAULTS = {
@@ -27,8 +28,11 @@ const EXERCISE_MASTER_V2_DEFAULTS = {
   LoadMode: 'total',
   Laterality: 'bilateral',
   DefaultRestSec: 30,
-  Active: true
+  Active: true,
+  Favorite: false
 };
+
+const EXERCISE_FAVORITE_RUNTIME_TAG = '__fitnessapp_favorite__';
 
 function _generateExerciseId() {
   return 'ex_' + Utilities.getUuid().replace(/-/g, '').substring(0, 12);
@@ -169,6 +173,12 @@ function _exerciseMetadataActive(value) {
   return true;
 }
 
+function _exerciseMetadataFavorite(value) {
+  if (value === true || value === 1) return true;
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'true' || normalized === '1' || normalized === 'yes';
+}
+
 /**
  * Header-aware metadata reader for the upcoming Flexible Set Model.
  * Calling it also guarantees the lazy V2 migration has run.
@@ -211,19 +221,25 @@ function _exerciseMetadataFromRow(row, headerMap) {
   if (!motion) return null;
   const tagsRaw = String(valueAt('Tags') || '').trim();
   const tags = tagsRaw ? tagsRaw.split(',').map(function (tag) { return String(tag).trim(); }).filter(Boolean) : [];
+  const favorite = _exerciseMetadataFavorite(valueAt('Favorite'));
+  // API.gs 的 catalog builder 目前只轉送既有 tags 欄位。Favorite 本身仍獨立存
+  // 在 ExerciseMaster；這個 marker 僅存在 runtime metadata，讓 Picker 可在不改 router
+  // 的前提下拿到收藏狀態。前端 normalize 後會立即移除，不會顯示成使用者 Tag。
+  const runtimeTags = favorite ? tags.concat([EXERCISE_FAVORITE_RUNTIME_TAG]) : tags;
   const restRaw = valueAt('DefaultRestSec');
   const restNumber = Number(restRaw);
   return {
     exerciseId: String(valueAt('ExerciseId') || '').trim(),
     motion: motion,
     category: String(valueAt('Category') || '').trim(),
-    tags: tags,
+    tags: runtimeTags,
     trackingType: String(valueAt('TrackingType') || EXERCISE_MASTER_V2_DEFAULTS.TrackingType).trim(),
     loadMode: String(valueAt('LoadMode') || EXERCISE_MASTER_V2_DEFAULTS.LoadMode).trim(),
     laterality: String(valueAt('Laterality') || EXERCISE_MASTER_V2_DEFAULTS.Laterality).trim(),
     defaultRestSec: isNaN(restNumber) ? EXERCISE_MASTER_V2_DEFAULTS.DefaultRestSec : restNumber,
     demoMedia: String(valueAt('DemoMedia') || '').trim(),
-    active: _exerciseMetadataActive(valueAt('Active'))
+    active: _exerciseMetadataActive(valueAt('Active')),
+    favorite: favorite
   };
 }
 
@@ -299,6 +315,7 @@ function _buildExerciseMasterV2Row(width, headerMap, motion, category, tags) {
   _setExerciseRowValue(row, headerMap, 'DefaultRestSec', EXERCISE_MASTER_V2_DEFAULTS.DefaultRestSec);
   _setExerciseRowValue(row, headerMap, 'DemoMedia', '');
   _setExerciseRowValue(row, headerMap, 'Active', EXERCISE_MASTER_V2_DEFAULTS.Active);
+  _setExerciseRowValue(row, headerMap, 'Favorite', EXERCISE_MASTER_V2_DEFAULTS.Favorite);
   return row;
 }
 
