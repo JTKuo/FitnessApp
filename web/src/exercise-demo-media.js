@@ -48,7 +48,10 @@ function driveIdFromUrl(url) {
 function driveDescriptor(fileId, originalUrl) {
     const encodedId = encodeURIComponent(fileId);
     return {
-        type: 'drive',
+        // Reuse the Picker's normal <video> path. drive-demo-media.js adds looping
+        // behavior and replaces the video with Drive preview if direct streaming fails.
+        type: 'video',
+        source: 'drive',
         src: `https://drive.usercontent.google.com/download?id=${encodedId}&export=download&confirm=t`,
         fallbackSrc: `https://drive.google.com/file/d/${encodedId}/preview`,
         originalUrl,
@@ -63,7 +66,7 @@ function driveDescriptor(fileId, originalUrl) {
  *
  * Supported Google Drive forms:
  *   drive:<FILE_ID>
- *   https://drive.google.com/file/d/<FILE_ID>/view?... 
+ *   https://drive.google.com/file/d/<FILE_ID>/view?...
  *   https://drive.google.com/open?id=<FILE_ID>
  */
 export function normalizeDemoMedia(value) {
