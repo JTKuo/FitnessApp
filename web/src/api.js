@@ -2,33 +2,12 @@
 // 方法名稱與簽名與舊版完全一致，回傳值形狀也一致（router 只包一層 ok/data）。
 import { getValidToken, requestReauth, storeSessionToken } from './auth.js';
 import { workoutDraft } from './workout-draft.js';
+import { createRequestGate } from './request-gate.js';
 
 const API_URL = import.meta.env.VITE_GAS_API_URL;
 
-// 併發閘門：GAS 每個請求都要開啟一次試算表，成本高；同時湧入太多請求會被擋下，
-// 回傳沒有 CORS 標頭的錯誤頁（載入 8 個動作的範本時必現，因為每張卡片都會立刻查詢上次表現）。
-// 限制同時在途的請求數即可——請求總數不變，且因 GAS 單次執行開銷大，總耗時通常反而更短。
-const MAX_CONCURRENT_REQUESTS = 3;
-let inFlightCount = 0;
-const pendingResolvers = [];
-
-function acquireRequestSlot() {
-  if (inFlightCount < MAX_CONCURRENT_REQUESTS) {
-    inFlightCount += 1;
-    return Promise.resolve();
-  }
-  return new Promise((resolve) => pendingResolvers.push(resolve));
-}
-
-function releaseRequestSlot() {
-  const next = pendingResolvers.shift();
-  // 直接把名額交棒給下一個等待者（不遞減計數），避免中間出現空窗或超發
-  if (next) next();
-  else inFlightCount -= 1;
-}
-
 // GAS 的 /exec 會先回一個轉址到 googleusercontent 的一次性網址，該轉址在服務層
-// 會間歇性回 404（已排除本專案程式碼、併發、service worker、CORS 與部署劣化）。
+// 會間歇性回 404（已排除本專案程式碼、service worker、CORS 與部署劣化）。
 // 一般寫入不能盲目 retry，否則可能重複寫入；僅明確具備 idempotent upsert 語意的 action 例外。
 const READ_ONLY_ACTIONS = new Set([
   'getInitialData', 'getLatestPerformance', 'getUniqueExerciseNames', 'getAnalysisData',
@@ -39,10 +18,20 @@ const IDEMPOTENT_WRITE_ACTIONS = new Set([
   // 依 Motion upsert，後端另有 LockService 保護；重送不會新增第二列。
   'saveExerciseMetadata',
 ]);
+
+// 仍維持最多 3 個 GAS request，但背景 read 最多只能占 2 個 slot。
+// 第 3 個 slot 保留給 login / save 等使用者主動操作，避免新增動作後的
+// getLatestPerformance 等背景讀取把下一次 saveExerciseMetadata 永久卡在 queue。
+const requestGate = createRequestGate({
+  maxConcurrent: 3,
+  maxConcurrentReads: 2,
+});
+
 const ACTION_TIMEOUT_MS = {
   // 避免 GAS redirect/network 卡住時 UI 永久停在「建立中…」。
   saveExerciseMetadata: 12000,
 };
+const DEFAULT_READ_TIMEOUT_MS = 15000;
 const MAX_READ_ATTEMPTS = 3;
 const MAX_IDEMPOTENT_WRITE_ATTEMPTS = 2;
 
@@ -54,8 +43,10 @@ function isTransportFailure(err) {
 }
 
 async function postOnce(body) {
-  await acquireRequestSlot();
-  const timeoutMs = Number(ACTION_TIMEOUT_MS[body.action]) || 0;
+  const readOnly = READ_ONLY_ACTIONS.has(body.action);
+  await requestGate.acquire({ readOnly });
+
+  const timeoutMs = Number(ACTION_TIMEOUT_MS[body.action]) || (readOnly ? DEFAULT_READ_TIMEOUT_MS : 0);
   const controller = timeoutMs > 0 ? new AbortController() : null;
   let timeoutId = null;
 
@@ -91,7 +82,7 @@ async function postOnce(body) {
     return json.data;
   } finally {
     if (timeoutId) clearTimeout(timeoutId);
-    releaseRequestSlot();
+    requestGate.release({ readOnly });
   }
 }
 
