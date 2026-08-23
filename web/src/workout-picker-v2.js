@@ -1,5 +1,6 @@
 import { CATEGORY_ORDER } from './exercise-taxonomy.js';
 import { openNewExerciseSetup } from './new-exercise-setup.js';
+import { normalizeDemoMedia } from './exercise-demo-media.js';
 
 const DEFAULT_VISIBLE_LIMIT = 36;
 const RECENT_VISIBLE_LIMIT = 6;
@@ -45,6 +46,7 @@ export function normalizePickerCatalog(catalog) {
                 category: String(item.category || '').trim(),
                 tags: rawTags.filter(tag => tag !== FAVORITE_RUNTIME_TAG),
                 favorite,
+                demoMedia: String(item.demoMedia || '').trim(),
             };
         });
 }
@@ -143,6 +145,7 @@ function pickerState(app) {
     if (!app.state.exercisePicker) app.state.exercisePicker = { category: '', tag: '', tagOpen: false };
     if (typeof app.state.exercisePicker.tagOpen !== 'boolean') app.state.exercisePicker.tagOpen = false;
     if (!app.state.exercisePicker.favoritePending) app.state.exercisePicker.favoritePending = {};
+    if (typeof app.state.exercisePicker.demoOpenMotion !== 'string') app.state.exercisePicker.demoOpenMotion = '';
     return app.state.exercisePicker;
 }
 
@@ -354,15 +357,76 @@ function createExerciseButton(item, options = {}) {
     return button;
 }
 
+function createDemoMediaPanel(item, media) {
+    const panel = document.createElement('div');
+    panel.className = 'picker-demo-panel';
+    panel.dataset.pickerDemoPanel = item.motion;
+
+    const showError = () => {
+        panel.innerHTML = '';
+        const message = document.createElement('div');
+        message.className = 'picker-demo-error';
+        message.textContent = '示範媒體載入失敗';
+        panel.appendChild(message);
+    };
+
+    if (media.type === 'youtube') {
+        const iframe = document.createElement('iframe');
+        iframe.title = `${item.motion} 動作示範`;
+        iframe.loading = 'lazy';
+        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+        iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+        iframe.setAttribute('allowfullscreen', '');
+        iframe.src = media.src;
+        panel.appendChild(iframe);
+        return panel;
+    }
+
+    if (media.type === 'video') {
+        const video = document.createElement('video');
+        video.controls = true;
+        video.playsInline = true;
+        video.preload = 'metadata';
+        video.setAttribute('aria-label', `${item.motion} 動作示範`);
+        video.addEventListener('error', showError, { once: true });
+        video.src = media.src;
+        panel.appendChild(video);
+        return panel;
+    }
+
+    const image = document.createElement('img');
+    image.alt = `${item.motion} 動作示範`;
+    image.loading = 'lazy';
+    image.decoding = 'async';
+    image.addEventListener('error', showError, { once: true });
+    image.src = media.src;
+    panel.appendChild(image);
+    return panel;
+}
+
 function renderExerciseItem(list, item, options = {}) {
     if (options.create) {
         list.appendChild(createExerciseButton(item, options));
         return;
     }
 
+    // Important: normalizeDemoMedia only parses the URL. No image/video/iframe is
+    // created until demoOpen is true, so opening the Picker does not fetch media.
+    const demoMedia = normalizeDemoMedia(item.demoMedia);
     const row = document.createElement('div');
-    row.className = 'picker-exercise-row';
+    row.className = `picker-exercise-row${demoMedia ? ' has-demo-media' : ''}`;
     row.appendChild(createExerciseButton(item));
+
+    if (demoMedia) {
+        const demo = document.createElement('button');
+        demo.type = 'button';
+        demo.className = `picker-demo-toggle${options.demoOpen ? ' is-active' : ''}`;
+        demo.dataset.pickerDemoMotion = item.motion;
+        demo.setAttribute('aria-expanded', options.demoOpen ? 'true' : 'false');
+        demo.setAttribute('aria-label', options.demoOpen ? `收合 ${item.motion} 示範` : `查看 ${item.motion} 示範`);
+        demo.textContent = options.demoOpen ? '▴' : '▶';
+        row.appendChild(demo);
+    }
 
     const favorite = document.createElement('button');
     favorite.type = 'button';
@@ -376,6 +440,8 @@ function renderExerciseItem(list, item, options = {}) {
         favorite.setAttribute('aria-busy', 'true');
     }
     row.appendChild(favorite);
+
+    if (demoMedia && options.demoOpen) row.appendChild(createDemoMediaPanel(item, demoMedia));
     list.appendChild(row);
 }
 
@@ -395,6 +461,7 @@ function renderCatalogItems(app, list, items) {
     const state = pickerState(app);
     items.forEach(item => renderExerciseItem(list, item, {
         favoritePending: !!state.favoritePending[item.motion],
+        demoOpen: state.demoOpenMotion === item.motion,
     }));
 }
 
@@ -492,6 +559,18 @@ function installDelegatedEvents(app) {
     if (list && !list.dataset.pickerV2Bound) {
         list.dataset.pickerV2Bound = '1';
         list.addEventListener('click', event => {
+            const demo = event.target.closest('[data-picker-demo-motion]');
+            if (demo && list.contains(demo)) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                const motion = String(demo.dataset.pickerDemoMotion || '').trim();
+                if (!motion) return;
+                const state = pickerState(app);
+                state.demoOpenMotion = state.demoOpenMotion === motion ? '' : motion;
+                renderPicker(app);
+                return;
+            }
+
             const favorite = event.target.closest('[data-picker-favorite-motion]');
             if (favorite && list.contains(favorite)) {
                 event.preventDefault();
@@ -575,6 +654,7 @@ export function installWorkoutPickerV2(app) {
         state.category = '';
         state.tag = '';
         state.tagOpen = false;
+        state.demoOpenMotion = '';
         const input = document.getElementById('autocomplete-input');
         if (input) input.placeholder = '搜尋動作、部位或標籤...';
         installDelegatedEvents(app);

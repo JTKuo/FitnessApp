@@ -2,6 +2,7 @@ import './style.css';
 import './per-hand-unit-presentation.css';
 import './set-meta-stack.css';
 import './workout-picker-v2.css';
+import './workout-demo-media.css';
 import './new-exercise-setup.css';
 import Chart from 'chart.js/auto';
 import 'chartjs-adapter-date-fns';
