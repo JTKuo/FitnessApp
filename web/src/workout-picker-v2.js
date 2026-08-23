@@ -1,4 +1,5 @@
 import { CATEGORY_ORDER } from './exercise-taxonomy.js';
+import { openNewExerciseSetup } from './new-exercise-setup.js';
 
 const DEFAULT_VISIBLE_LIMIT = 36;
 const RECENT_VISIBLE_LIMIT = 6;
@@ -284,7 +285,7 @@ function renderExerciseItem(list, item, options = {}) {
     const meta = document.createElement('span');
     meta.className = 'picker-exercise-meta';
     meta.textContent = options.create
-        ? '建立新動作 · 預設為重量 × 次數'
+        ? '建立新動作 · 可設定記錄方式、左右與休息'
         : itemMeta(item);
     button.appendChild(meta);
 
@@ -420,9 +421,15 @@ export function installWorkoutPickerV2(app) {
                 app.ui.showToast('請輸入動作名稱！');
                 return;
             }
-            bumpRecentName(app, motion);
-            app.methods.addExercise(motion);
-            app.ui.showAutocompleteModal(false);
+            if (hasExactMotion(getCatalog(app), motion)) {
+                bumpRecentName(app, motion);
+                app.methods.addExercise(motion);
+                app.ui.showAutocompleteModal(false);
+                return;
+            }
+            openNewExerciseSetup(app, motion, {
+                onCreated: metadata => bumpRecentName(app, metadata.motion),
+            });
         });
 
         const state = pickerState(app);
