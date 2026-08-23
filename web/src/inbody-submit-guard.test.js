@@ -8,7 +8,9 @@ afterEach(() => {
 describe('installInBodySubmitGuard', () => {
     it('allows only one InBody save request at a time and restores the button', async () => {
         let resolveSave;
-        const originalSave = vi.fn(() => new Promise((resolve) => { resolveSave = resolve; }));
+        const originalSave = vi.fn()
+            .mockImplementationOnce(() => new Promise((resolve) => { resolveSave = resolve; }))
+            .mockResolvedValue({ status: 'success' });
         const showToast = vi.fn();
         const button = {
             disabled: false,
