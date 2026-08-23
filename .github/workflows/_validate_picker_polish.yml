@@ -1,9 +1,9 @@
 name: Validate Workout Picker Polish
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/workout-picker-polish
+      - main
 
 permissions:
   contents: read
