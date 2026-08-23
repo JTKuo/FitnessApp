@@ -10,6 +10,7 @@ import Sortable from 'sortablejs';
 import imageCompression from 'browser-image-compression';
 import { initAuth } from './auth.js';
 import { app } from './app.js';
+import { installInBodySubmitGuard } from './inbody-submit-guard.js';
 import './per-hand-unit-presentation.js';
 
 // 搬移的程式碼以全域名稱引用這些函式庫，維持原樣、以掛載頂替 CDN
@@ -18,6 +19,9 @@ window.CalHeatmap = CalHeatmap;
 window.Sortable = Sortable;
 window.imageCompression = imageCompression;
 Chart.register(ChartDataLabels);
+
+// 同一筆 InBody 儲存只允許一個 request in flight，避免慢網路時重複點擊造成重複列。
+installInBodySubmitGuard(app);
 
 // PWA 自動更新：service worker 在背景安裝新版後會接管頁面，但此時畫面上跑的
 // 仍是舊版程式碼，造成「部署了卻沒生效」的假象（已兩度導致驗收誤判）。
