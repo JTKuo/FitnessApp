@@ -131,18 +131,26 @@
         </div>
     </div>
 
-    <!-- InBody 量測 Modal (R1) -->
+    <!-- InBody 量測 Modal (V3) -->
     <div id="inbody-modal" class="hidden fixed inset-0 z-50 bg-black/80 flex justify-center items-center p-4">
-        <div class="card w-full max-w-md rounded-lg p-6 space-y-4">
+        <div class="card w-full max-w-md max-h-[90vh] overflow-y-auto rounded-lg p-6 space-y-4">
             <h3 class="text-lg font-bold text-yellow-400">新增 InBody 量測</h3>
             <div>
                 <label class="text-sm text-gray-400" for="inbody-date">量測日期</label>
                 <input type="date" id="inbody-date" class="w-full rounded-md p-2 mt-1">
             </div>
-            <div class="grid grid-cols-3 gap-2">
+            <div class="grid grid-cols-2 gap-2">
                 <div><label class="text-sm text-gray-400" for="inbody-weight">體重 (kg)</label><input type="number" step="0.1" min="0" id="inbody-weight" class="w-full rounded-md p-2 mt-1"></div>
                 <div><label class="text-sm text-gray-400" for="inbody-bodyfat">體脂率 (%)</label><input type="number" step="0.1" min="0" id="inbody-bodyfat" class="w-full rounded-md p-2 mt-1"></div>
                 <div><label class="text-sm text-gray-400" for="inbody-smm">骨骼肌 (kg)</label><input type="number" step="0.1" min="0" id="inbody-smm" class="w-full rounded-md p-2 mt-1"></div>
+                <div><label class="text-sm text-gray-400" for="inbody-bfm">體脂肪重 (kg)</label><input type="number" step="0.1" min="0" id="inbody-bfm" class="w-full rounded-md p-2 mt-1"></div>
+                <div><label class="text-sm text-gray-400" for="inbody-bmi">BMI</label><input type="number" step="0.1" min="0" id="inbody-bmi" class="w-full rounded-md p-2 mt-1"></div>
+                <div><label class="text-sm text-gray-400" for="inbody-vfi">內臟脂肪等級</label><input type="number" step="0.1" min="0" id="inbody-vfi" class="w-full rounded-md p-2 mt-1"></div>
+                <div><label class="text-sm text-gray-400" for="inbody-score">InBody 分數</label><input type="number" step="0.1" min="0" id="inbody-score" class="w-full rounded-md p-2 mt-1"></div>
+            </div>
+            <div>
+                <label class="text-sm text-gray-400" for="inbody-note">備註（選填）</label>
+                <textarea id="inbody-note" rows="2" class="w-full rounded-md p-2 mt-1" placeholder="量測狀態、飲食、訓練週期等"></textarea>
             </div>
             <div>
                 <label class="text-sm text-gray-400" for="inbody-photo">紙本量測單照片（選填）</label>
@@ -281,7 +289,7 @@
                                 <div>
                                     <label class="block text-sm font-medium text-gray-300 mb-1">內臟脂肪等級</label>
                                     <p class="view-mode w-full rounded-md p-2 bg-black/30" data-placeholder="--">--</p>
-                                    <input data-key="vfl" type="number" min="0" class="edit-mode hidden w-full rounded-md p-2 profile-input">
+                                    <input data-key="vfi" type="number" min="0" class="edit-mode hidden w-full rounded-md p-2 profile-input">
                                 </div>
                             </div>
                         </div>

@@ -12,7 +12,7 @@ function _ensureProfileHeaders(profileSheet) {
     '更新日期', 'name', 'age', 'gender', 'height', 'weight', 'bodyfat', 
     'frequency', 'diet_plan', 'experience', 'lifestyle', 'history', 
     'static_assessment', 'dynamic_assessment', 'cid', 'inbody_score', 
-    'smm', 'bfm', 'bmi', 'vfl', 'training_direction'
+    'smm', 'bfm', 'bmi', 'vfl', 'vfi', 'training_direction'
   ];
 
   const currentHeaders = profileSheet.getRange(1, 1, 1, profileSheet.getLastColumn()).getValues()[0];
@@ -102,6 +102,7 @@ function _getOrCreateSheet(spreadsheet, sheetName) {
         CONSTANTS.HEADERS.BFM,
         CONSTANTS.HEADERS.BMI,
         CONSTANTS.HEADERS.VFL,
+        CONSTANTS.HEADERS.VFI,
         'training_direction'
       ];
       sheet.appendRow(canonicalHeaders);
@@ -217,6 +218,11 @@ function _getLatestProfileData(spreadsheet) {
       profile[header] = latestData[index];
     }
   });
+  // vfi is canonical. Keep the legacy vfl alias readable during migration.
+  const hasVfi = profile.vfi !== undefined && profile.vfi !== null && profile.vfi !== '';
+  const hasVfl = profile.vfl !== undefined && profile.vfl !== null && profile.vfl !== '';
+  if (!hasVfi && hasVfl) profile.vfi = profile.vfl;
+  if (!hasVfl && hasVfi) profile.vfl = profile.vfi;
   return profile;
 }
 
