@@ -1,5 +1,7 @@
 from pathlib import Path
 
+# Temporary branch validator; removed after successful CI.
+
 
 def replace_once(path, old, new):
     p = Path(path)
