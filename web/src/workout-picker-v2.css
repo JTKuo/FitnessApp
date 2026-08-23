@@ -29,6 +29,29 @@
     letter-spacing: 0.04em;
 }
 
+.picker-filter-scroller-wrap {
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.picker-filter-scroller-wrap.has-scroll-hint::after {
+    content: '›';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 1.65rem;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 0.1rem;
+    color: #6b7280;
+    font-size: 1rem;
+    pointer-events: none;
+    background: linear-gradient(to right, rgba(8, 10, 13, 0), rgba(8, 10, 13, 0.96) 62%);
+}
+
 .picker-filter-scroller {
     display: flex;
     gap: 0.35rem;
@@ -36,7 +59,8 @@
     overflow-x: auto;
     overscroll-behavior-x: contain;
     scrollbar-width: none;
-    padding: 0.1rem 0 0.2rem;
+    scroll-snap-type: x proximity;
+    padding: 0.1rem 1.2rem 0.2rem 0;
 }
 
 .picker-filter-scroller::-webkit-scrollbar {
@@ -53,6 +77,7 @@
     background: rgba(17, 24, 39, 0.72);
     font-size: 0.75rem;
     line-height: 1;
+    scroll-snap-align: start;
     transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
 }
 
@@ -60,6 +85,112 @@
     border-color: rgba(255, 195, 0, 0.9);
     background: rgba(255, 195, 0, 0.14);
     color: #ffd43b;
+}
+
+.picker-tag-row {
+    align-items: start;
+}
+
+.picker-tag-row .picker-filter-label {
+    padding-top: 0.65rem;
+}
+
+.picker-tag-control {
+    min-width: 0;
+}
+
+.picker-tag-trigger {
+    width: 100%;
+    min-height: 2.35rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.5rem 0.7rem;
+    border: 1px solid #4b5563;
+    border-radius: 0.55rem;
+    color: #d1d5db;
+    background: rgba(17, 24, 39, 0.72);
+    font-size: 0.78rem;
+    text-align: left;
+}
+
+.picker-tag-trigger.is-active {
+    border-color: rgba(255, 195, 0, 0.8);
+    color: #ffd43b;
+    background: rgba(255, 195, 0, 0.08);
+}
+
+.picker-tag-trigger:disabled {
+    color: #6b7280;
+    cursor: default;
+    opacity: 0.76;
+}
+
+.picker-tag-trigger-meta {
+    flex: 0 0 auto;
+    color: #6b7280;
+    font-size: 0.7rem;
+}
+
+.picker-tag-panel {
+    max-height: 10rem;
+    overflow-y: auto;
+    margin-top: 0.4rem;
+    padding: 0.55rem;
+    border: 1px solid rgba(75, 85, 99, 0.8);
+    border-radius: 0.55rem;
+    background: rgba(10, 12, 16, 0.98);
+    scrollbar-width: thin;
+    scrollbar-color: #4b5563 transparent;
+}
+
+.picker-tag-panel::-webkit-scrollbar {
+    width: 4px;
+}
+
+.picker-tag-panel::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.picker-tag-panel::-webkit-scrollbar-thumb {
+    background: #4b5563;
+    border-radius: 999px;
+}
+
+.picker-tag-group + .picker-tag-group {
+    margin-top: 0.55rem;
+}
+
+.picker-tag-group-title {
+    margin-bottom: 0.35rem;
+    color: #6b7280;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.picker-tag-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.picker-tag-clear {
+    width: 100%;
+    margin-bottom: 0.55rem;
+    padding: 0.35rem 0.5rem;
+    border: 0;
+    color: #9ca3af;
+    background: transparent;
+    font-size: 0.72rem;
+    text-align: left;
+}
+
+.picker-tag-clear:active,
+.picker-tag-clear:focus-visible {
+    color: #ffd43b;
+    outline: none;
 }
 
 #suggestions-list {
@@ -154,6 +285,18 @@
     color: #6b7280;
     font-size: 0.82rem;
     text-align: center;
+}
+
+@media (max-width: 420px) {
+    .picker-filter-row {
+        grid-template-columns: 2.2rem minmax(0, 1fr);
+        gap: 0.35rem;
+    }
+
+    .picker-chip {
+        min-height: 2.1rem;
+        padding-inline: 0.62rem;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {

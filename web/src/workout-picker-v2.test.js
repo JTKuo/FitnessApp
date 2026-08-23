@@ -1,12 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { filterPickerCatalog, normalizePickerCatalog, resolveRecentPickerExercises } from './workout-picker-v2.js';
+import {
+    filterPickerCatalog,
+    getAvailablePickerCategories,
+    getAvailablePickerTags,
+    normalizePickerCatalog,
+    resolveRecentPickerExercises,
+} from './workout-picker-v2.js';
 
 const catalog = [
     { motion: '史密斯肩推', category: '肩', tags: ['機械', '推'], active: true },
     { motion: '啞鈴肩推', category: '肩', tags: ['啞鈴', '推'], active: true },
     { motion: '滑輪下拉', category: '背', tags: ['滑輪', '拉'], active: true },
     { motion: '棒式', category: '核心', tags: ['自體重量'], active: true },
-    { motion: '停用動作', category: '其他', tags: [], active: false },
+    { motion: '空標籤胸推', category: '胸', tags: [], active: true },
+    { motion: '停用動作', category: '其他', tags: ['槓鈴'], active: false },
 ];
 
 describe('Workout Picker 2.0 catalog helpers', () => {
@@ -33,6 +40,14 @@ describe('Workout Picker 2.0 catalog helpers', () => {
             .toEqual(['啞鈴肩推']);
         expect(filterPickerCatalog(catalog, { category: '肩', tag: '滑輪' }))
             .toEqual([]);
+    });
+
+    it('only exposes categories and tags that active catalog data actually uses', () => {
+        expect(getAvailablePickerCategories(catalog)).toEqual(['胸', '背', '肩', '核心']);
+        expect(getAvailablePickerTags(catalog)).toEqual(['啞鈴', '機械', '滑輪', '自體重量', '推', '拉']);
+        expect(getAvailablePickerTags(catalog, '胸')).toEqual([]);
+        expect(getAvailablePickerTags(catalog, '肩')).toEqual(['啞鈴', '機械', '推']);
+        expect(getAvailablePickerCategories(catalog, '滑輪')).toEqual(['背']);
     });
 
     it('preserves backend recent-use order and removes missing or duplicate items', () => {
