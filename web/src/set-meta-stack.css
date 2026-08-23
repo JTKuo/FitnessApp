@@ -1,0 +1,57 @@
+/* --- Workout Set Meta Stack v0.2 ---
+   Keep the workout set on one horizontal row, but stack SET + set type
+   inside one compact control so primary numeric inputs keep their width. */
+
+.workout-set-row {
+    grid-template-columns: 4.6rem minmax(0, 1fr) 4.6rem;
+}
+
+.workout-set-meta-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1.05rem minmax(0, 1fr);
+    height: 3rem;
+    min-height: 3rem;
+    align-items: stretch;
+}
+
+.workout-set-number {
+    padding: 0 0.3rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+    font-size: 0.6rem;
+    line-height: 1;
+}
+
+.workout-set-type-toggle {
+    border-left: 0;
+    border-top: 0;
+    padding: 0.2rem 0.25rem 0.25rem;
+    font-size: 0.67rem;
+    line-height: 1;
+}
+
+.workout-set-type-toggle[data-set-type="working"] {
+    border-left-color: transparent;
+    box-shadow: inset 0 2px 0 rgba(255, 195, 0, 0.55);
+}
+
+.workout-set-type-toggle[data-set-type="warmup"] {
+    border-left-color: transparent;
+    box-shadow: none;
+}
+
+@media (max-width: 430px) {
+    .workout-set-row {
+        grid-template-columns: 4.25rem minmax(0, 1fr) 4.25rem;
+        gap: 0.38rem;
+    }
+
+    .workout-set-number {
+        padding-inline: 0.2rem;
+        font-size: 0.57rem;
+    }
+
+    .workout-set-type-toggle {
+        padding-inline: 0.2rem;
+        font-size: 0.63rem;
+    }
+}
