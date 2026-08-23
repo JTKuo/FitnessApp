@@ -27,7 +27,8 @@ describe('Exercise DemoMedia normalization', () => {
 
     it('accepts drive:<fileId> without storing a long share URL', () => {
         expect(normalizeDemoMedia('drive:1AbCdEfGhIjKlMnOpQrStUvWxYz12345')).toMatchObject({
-            type: 'drive',
+            type: 'video',
+            source: 'drive',
             driveFileId: '1AbCdEfGhIjKlMnOpQrStUvWxYz12345',
             src: 'https://drive.usercontent.google.com/download?id=1AbCdEfGhIjKlMnOpQrStUvWxYz12345&export=download&confirm=t',
             fallbackSrc: 'https://drive.google.com/file/d/1AbCdEfGhIjKlMnOpQrStUvWxYz12345/preview',
@@ -36,10 +37,10 @@ describe('Exercise DemoMedia normalization', () => {
 
     it('extracts a Drive file id from common share links', () => {
         const fileUrl = normalizeDemoMedia('https://drive.google.com/file/d/1AbCdEfGhIjKlMnOpQrStUvWxYz12345/view?usp=sharing');
-        expect(fileUrl).toMatchObject({ type: 'drive', driveFileId: '1AbCdEfGhIjKlMnOpQrStUvWxYz12345' });
+        expect(fileUrl).toMatchObject({ type: 'video', source: 'drive', driveFileId: '1AbCdEfGhIjKlMnOpQrStUvWxYz12345' });
 
         const openUrl = normalizeDemoMedia('https://drive.google.com/open?id=1AbCdEfGhIjKlMnOpQrStUvWxYz12345');
-        expect(openUrl).toMatchObject({ type: 'drive', driveFileId: '1AbCdEfGhIjKlMnOpQrStUvWxYz12345' });
+        expect(openUrl).toMatchObject({ type: 'video', source: 'drive', driveFileId: '1AbCdEfGhIjKlMnOpQrStUvWxYz12345' });
     });
 
     it('rejects Drive folders and malformed Drive ids', () => {
