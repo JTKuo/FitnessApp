@@ -30,12 +30,16 @@ function _normalizeExerciseSetupPayload(metadata) {
   if (!isFinite(defaultRestSec)) defaultRestSec = 60;
   defaultRestSec = Math.max(1, Math.min(600, Math.round(defaultRestSec)));
 
+  const favoriteSpecified = typeof metadata.favorite === 'boolean';
+
   return {
     motion: motion,
     trackingType: trackingType,
     loadMode: loadMode,
     laterality: laterality,
-    defaultRestSec: defaultRestSec
+    defaultRestSec: defaultRestSec,
+    favoriteSpecified: favoriteSpecified,
+    favorite: favoriteSpecified ? metadata.favorite : false
   };
 }
 
@@ -91,6 +95,9 @@ function saveExerciseMetadata(authedEmail, requestedEmail, metadata) {
     _setExerciseRowValue(row, context.headerMap, 'Laterality', normalized.laterality);
     _setExerciseRowValue(row, context.headerMap, 'DefaultRestSec', normalized.defaultRestSec);
     _setExerciseRowValue(row, context.headerMap, 'Active', true);
+    if (normalized.favoriteSpecified) {
+      _setExerciseRowValue(row, context.headerMap, 'Favorite', normalized.favorite);
+    }
 
     if (rowIndex >= 0) {
       sheet.getRange(rowIndex + 2, 1, 1, width).setValues([row]);
