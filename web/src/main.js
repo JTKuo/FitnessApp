@@ -1,4 +1,5 @@
 import './style.css';
+import './per-hand-unit-presentation.css';
 import Chart from 'chart.js/auto';
 import 'chartjs-adapter-date-fns';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
@@ -8,6 +9,7 @@ import Sortable from 'sortablejs';
 import imageCompression from 'browser-image-compression';
 import { initAuth } from './auth.js';
 import { app } from './app.js';
+import './per-hand-unit-presentation.js';
 
 // 搬移的程式碼以全域名稱引用這些函式庫，維持原樣、以掛載頂替 CDN
 window.Chart = Chart;
