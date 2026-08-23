@@ -42,6 +42,7 @@ const API_ROUTES = {
   getInBodyRecords:                 function (email, p) { return getInBodyRecords(email, p.userEmail || null); },
   deleteInBodyRecord:               function (email, p) { return deleteInBodyRecord(email, p.recordId); },
   getExerciseCatalog:               function (email, p) { return getExerciseCatalog(email, p.userEmail || null); },
+  saveExerciseMetadata:              function (email, p) { return saveExerciseMetadata(email, p.userEmail || null, p.metadata); },
   saveExerciseClassifications:      function (email, p) { return saveExerciseClassifications(email, p.items); },
   autoClassifyExercises:            function (email, p) { return autoClassifyExercises(email); },
   login:                            function (email, p) { return { email: email }; }

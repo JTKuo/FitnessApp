@@ -1,0 +1,207 @@
+.exercise-setup-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.78);
+    backdrop-filter: blur(3px);
+}
+
+.exercise-setup-overlay.hidden {
+    display: none;
+}
+
+.exercise-setup-modal {
+    width: min(100%, 31rem);
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid rgba(255, 195, 0, 0.55);
+    border-radius: 0.9rem;
+    background: #090a0c;
+    box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.55);
+}
+
+.exercise-setup-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.05rem 1.1rem 0.7rem;
+}
+
+.exercise-setup-kicker {
+    margin-bottom: 0.15rem;
+    color: #7c828d;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+}
+
+.exercise-setup-header h2 {
+    margin: 0;
+    color: #ffc300;
+    font-size: 1.25rem;
+    font-weight: 800;
+}
+
+.exercise-setup-close {
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 0;
+    color: #9ca3af;
+    background: transparent;
+    font-size: 1.8rem;
+    line-height: 1;
+}
+
+.exercise-setup-motion {
+    margin: 0 1.1rem 0.85rem;
+    padding: 0.75rem 0.85rem;
+    border: 1px solid #343942;
+    border-radius: 0.65rem;
+    color: #f4f4f5;
+    background: #111318;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.exercise-setup-content {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 0 1.1rem 1rem;
+    scrollbar-width: thin;
+    scrollbar-color: #4b5563 transparent;
+}
+
+.exercise-setup-section + .exercise-setup-section {
+    margin-top: 1rem;
+}
+
+.exercise-setup-label {
+    margin-bottom: 0.45rem;
+    color: #a7abb3;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.exercise-setup-choice-group {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+}
+
+.exercise-setup-rest-quick {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.exercise-setup-choice {
+    min-height: 2.8rem;
+    padding: 0.55rem 0.6rem;
+    border: 1px solid #4b5563;
+    border-radius: 0.6rem;
+    color: #c8cbd1;
+    background: #12151b;
+    font-size: 0.82rem;
+    font-weight: 650;
+}
+
+.exercise-setup-choice.is-active {
+    border-color: #ffc300;
+    color: #ffd43b;
+    background: rgba(255, 195, 0, 0.12);
+}
+
+.exercise-setup-rest-custom {
+    min-height: 2.8rem;
+    display: grid;
+    grid-template-columns: auto minmax(4.5rem, 1fr) auto;
+    align-items: center;
+    gap: 0.55rem;
+    margin-top: 0.55rem;
+    padding: 0.45rem 0.65rem;
+    border: 1px solid #343942;
+    border-radius: 0.6rem;
+    color: #8f949e;
+    background: #0f1115;
+    font-size: 0.78rem;
+}
+
+.exercise-setup-rest-custom input {
+    min-width: 0;
+    height: 2rem;
+    border: 0;
+    border-bottom: 1px solid #4b5563;
+    color: #f3f4f6;
+    background: transparent;
+    text-align: center;
+    font-size: 1rem;
+    font-weight: 700;
+    outline: none;
+}
+
+.exercise-setup-rest-custom input:focus {
+    border-bottom-color: #ffc300;
+}
+
+.exercise-setup-taxonomy-hint {
+    margin-top: 1rem;
+    padding: 0.65rem 0.75rem;
+    border-left: 2px solid rgba(255, 195, 0, 0.55);
+    color: #858b95;
+    background: rgba(255, 195, 0, 0.04);
+    font-size: 0.72rem;
+    line-height: 1.45;
+}
+
+.exercise-setup-actions {
+    display: grid;
+    grid-template-columns: 0.9fr 1.1fr;
+    gap: 0.65rem;
+    padding: 0.85rem 1.1rem 1.05rem;
+    border-top: 1px solid #252932;
+    background: #090a0c;
+}
+
+.exercise-setup-actions button {
+    min-height: 3rem;
+    border-radius: 0.6rem;
+    font-size: 0.9rem;
+    font-weight: 800;
+}
+
+.exercise-setup-cancel {
+    border: 1px solid #4b5563;
+    color: #e5e7eb;
+    background: #24211f;
+}
+
+.exercise-setup-save {
+    border: 1px solid #ffc300;
+    color: #111;
+    background: #ffc300;
+}
+
+.exercise-setup-save:disabled {
+    opacity: 0.58;
+}
+
+@media (max-width: 390px) {
+    .exercise-setup-overlay {
+        padding: 0.55rem;
+    }
+
+    .exercise-setup-rest-quick {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .exercise-setup-overlay {
+        backdrop-filter: none;
+    }
+}

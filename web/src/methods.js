@@ -1295,6 +1295,10 @@ export const methods = {
                     card.dataset.loadMode = loadMode;
                     card.dataset.laterality = laterality;
                     if (metadata?.exerciseId) card.dataset.exerciseId = metadata.exerciseId;
+                    const metadataRestSec = Number(metadata?.defaultRestSec);
+                    if (Number.isFinite(metadataRestSec) && metadataRestSec > 0) {
+                        card.dataset.defaultRestSec = String(Math.round(metadataRestSec));
+                    }
                     card.querySelectorAll('.js-set-row').forEach((setRow) => {
                         this.applyTrackingTypeToSet(setRow, trackingType);
                         this.applyLoadMetadataToSet(setRow, loadMode, laterality, setRow.dataset.side);
@@ -1603,6 +1607,10 @@ export const methods = {
                     cardElement.dataset.loadMode = loadMode;
                     cardElement.dataset.laterality = laterality;
                     if (metadata?.exerciseId) cardElement.dataset.exerciseId = metadata.exerciseId;
+                    const defaultRestSec = Number(metadata?.defaultRestSec);
+                    if (Number.isFinite(defaultRestSec) && defaultRestSec > 0) {
+                        cardElement.dataset.defaultRestSec = String(Math.round(defaultRestSec));
+                    }
                     cardElement.querySelector('.js-sets-container').appendChild(this.createSetElement(1, trackingType, loadMode, laterality, resolveSide(laterality, null)));
                     workoutList.appendChild(newCardFragment);
                     setTimeout(() => cardElement.classList.add('is-visible'), 10);

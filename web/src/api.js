@@ -126,6 +126,7 @@ export const backendApi = {
   getInBodyRecords: (userEmail = null) => apiCall('getInBodyRecords', { userEmail }),
   deleteInBodyRecord: (recordId) => apiCall('deleteInBodyRecord', { recordId }),
   getExerciseCatalog: (userEmail = null) => apiCall('getExerciseCatalog', { userEmail }),
+  saveExerciseMetadata: (metadata, userEmail = null) => apiCall('saveExerciseMetadata', { metadata, userEmail }),
   saveExerciseClassifications: (items) => apiCall('saveExerciseClassifications', { items }),
   autoClassifyExercises: () => apiCall('autoClassifyExercises', {}),
 };
