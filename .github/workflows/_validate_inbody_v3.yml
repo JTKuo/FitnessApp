@@ -1,0 +1,81 @@
+name: Validate InBody V3
+
+on:
+  push:
+    branches:
+      - feat/inbody-v3
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply InBody V3 patch
+        run: python scripts/_apply_inbody_v3.py
+
+      - name: Check diff
+        run: git diff --check
+
+      - name: Guard scope
+        shell: bash
+        run: |
+          allowed='^(src/API\.gs|src/Config\.gs|src/Internal\.gs|web/index\.html|web/src/methods\.js|scripts/_apply_inbody_v3\.py|\.github/workflows/_validate_inbody_v3\.yml)$'
+          bad=$(git diff --name-only HEAD | grep -Ev "$allowed" || true)
+          if [ -n "$bad" ]; then
+            echo "Unexpected files changed:"
+            echo "$bad"
+            exit 1
+          fi
+          if git diff HEAD -- src/API.gs src/Config.gs src/Internal.gs web/index.html web/src/methods.js | grep -q '^+.*MutationObserver'; then
+            echo 'InBody V3 slice must not add MutationObserver'
+            exit 1
+          fi
+
+      - name: GAS syntax check
+        shell: bash
+        run: |
+          for file in src/*.gs; do
+            node --check <(cat "$file") >/dev/null
+          done
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Test frontend
+        working-directory: web
+        run: npm run test
+
+      - name: Build frontend
+        working-directory: web
+        run: npm run build
+
+      - name: Remove temporary validator files
+        run: |
+          rm scripts/_apply_inbody_v3.py
+          rm .github/workflows/_validate_inbody_v3.yml
+
+      - name: Commit validated InBody V3 patch
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'No validated changes to commit.'
+            exit 1
+          fi
+          git commit -m 'feat: add InBody V3 history and profile snapshot [validated]'
+          git push
