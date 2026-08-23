@@ -148,6 +148,7 @@ function createSetFragment(setData, setNumber, trackingType = TRACKING_TYPE.WEIG
   if (sideToggle) {
     sideToggle.dataset.side = side;
     sideToggle.querySelector('.js-side-label').textContent = side === SIDE.RIGHT ? '右' : '左';
+    sideToggle.setAttribute('aria-label', side === SIDE.RIGHT ? '目前為右側，點擊切換左側' : '目前為左側，點擊切換右側');
     sideToggle.classList.toggle('hidden', normalizedTrackingType !== TRACKING_TYPE.WEIGHT_REPS || normalizedLaterality !== LATERALITY.UNILATERAL);
   }
   if (unitSelect) {

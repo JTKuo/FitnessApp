@@ -1586,7 +1586,8 @@ export const methods = {
                           performanceEl.textContent = '無時間紀錄';
                         }
                       } else if (data && data.weight_kg != null && data.reps != null) {
-                        performanceEl.innerHTML = `上次: <span class="font-bold">${data.weight_kg} kg x ${data.reps} 次</span>`;
+                        const performanceUnit = loadMode === LOAD_MODE.PER_HAND ? 'kg/手' : 'kg';
+                        performanceEl.innerHTML = `上次: <span class="font-bold">${data.weight_kg} ${performanceUnit} x ${data.reps} 次</span>`;
                       } else {
                         performanceEl.textContent = '無歷史紀錄';
                       }
