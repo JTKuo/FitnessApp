@@ -1,8 +1,11 @@
-import { ALL_TAGS, CATEGORY_ORDER } from './exercise-taxonomy.js';
+import { CATEGORY_ORDER } from './exercise-taxonomy.js';
 
 const DEFAULT_VISIBLE_LIMIT = 36;
 const RECENT_VISIBLE_LIMIT = 6;
 const EQUIPMENT_TAG_ORDER = ['槓鈴', '啞鈴', '機械', '滑輪', '自體重量', '壺鈴', '彈力帶'];
+const MOVEMENT_TAG_ORDER = ['推', '拉', '蹲', '髖鉸鏈'];
+const TYPE_TAG_ORDER = ['複合', '單關節'];
+const KNOWN_TAG_ORDER = [...EQUIPMENT_TAG_ORDER, ...MOVEMENT_TAG_ORDER, ...TYPE_TAG_ORDER];
 
 function normalizeText(value) {
     return String(value || '').trim().toLocaleLowerCase('zh-Hant');
@@ -26,6 +29,28 @@ export function normalizePickerCatalog(catalog) {
                 ? item.tags.map(tag => String(tag || '').trim()).filter(Boolean)
                 : String(item.tags || '').split(',').map(tag => tag.trim()).filter(Boolean),
         }));
+}
+
+function orderedValues(values, preferredOrder) {
+    const unique = new Set(values.filter(Boolean));
+    const ordered = preferredOrder.filter(value => unique.delete(value));
+    return ordered.concat([...unique].sort((a, b) => a.localeCompare(b, 'zh-Hant')));
+}
+
+export function getAvailablePickerCategories(catalog, activeTag = '') {
+    const normalized = normalizePickerCatalog(catalog);
+    const eligible = activeTag
+        ? normalized.filter(item => item.tags.includes(activeTag))
+        : normalized;
+    return orderedValues(eligible.map(item => item.category), CATEGORY_ORDER);
+}
+
+export function getAvailablePickerTags(catalog, activeCategory = '') {
+    const normalized = normalizePickerCatalog(catalog);
+    const eligible = activeCategory
+        ? normalized.filter(item => item.category === activeCategory)
+        : normalized;
+    return orderedValues(eligible.flatMap(item => item.tags), KNOWN_TAG_ORDER);
 }
 
 function searchRank(item, query) {
@@ -77,7 +102,8 @@ export function resolveRecentPickerExercises(catalog, recentNames, limit = RECEN
 }
 
 function pickerState(app) {
-    if (!app.state.exercisePicker) app.state.exercisePicker = { category: '', tag: '' };
+    if (!app.state.exercisePicker) app.state.exercisePicker = { category: '', tag: '', tagOpen: false };
+    if (typeof app.state.exercisePicker.tagOpen !== 'boolean') app.state.exercisePicker.tagOpen = false;
     return app.state.exercisePicker;
 }
 
@@ -114,10 +140,91 @@ function renderChipRow(container, label, kind, values, activeValue) {
     labelEl.textContent = label;
     row.appendChild(labelEl);
 
+    const wrap = document.createElement('div');
+    wrap.className = `picker-filter-scroller-wrap${values.length > 5 ? ' has-scroll-hint' : ''}`;
     const scroller = document.createElement('div');
     scroller.className = 'picker-filter-scroller';
     values.forEach(value => scroller.appendChild(createChip(value, kind, activeValue === value)));
-    row.appendChild(scroller);
+    wrap.appendChild(scroller);
+    row.appendChild(wrap);
+    container.appendChild(row);
+}
+
+function createTagGroup(title, values, activeValue) {
+    const group = document.createElement('div');
+    group.className = 'picker-tag-group';
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'picker-tag-group-title';
+    titleEl.textContent = title;
+    group.appendChild(titleEl);
+
+    const options = document.createElement('div');
+    options.className = 'picker-tag-options';
+    values.forEach(value => options.appendChild(createChip(value, 'tag', activeValue === value)));
+    group.appendChild(options);
+    return group;
+}
+
+function renderTagRow(container, tags, state) {
+    const row = document.createElement('div');
+    row.className = 'picker-filter-row picker-tag-row';
+
+    const labelEl = document.createElement('span');
+    labelEl.className = 'picker-filter-label';
+    labelEl.textContent = '標籤';
+    row.appendChild(labelEl);
+
+    const control = document.createElement('div');
+    control.className = 'picker-tag-control';
+
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = `picker-tag-trigger${state.tag ? ' is-active' : ''}`;
+    trigger.dataset.pickerTagToggle = '1';
+    trigger.disabled = tags.length === 0;
+    trigger.setAttribute('aria-expanded', state.tagOpen && tags.length ? 'true' : 'false');
+
+    const text = document.createElement('span');
+    text.textContent = tags.length === 0 ? '尚未建立標籤' : (state.tag || '全部標籤');
+    trigger.appendChild(text);
+
+    if (tags.length) {
+        const meta = document.createElement('span');
+        meta.className = 'picker-tag-trigger-meta';
+        meta.textContent = `${tags.length} ${state.tagOpen ? '▴' : '▾'}`;
+        trigger.appendChild(meta);
+    }
+    control.appendChild(trigger);
+
+    if (state.tagOpen && tags.length) {
+        const panel = document.createElement('div');
+        panel.className = 'picker-tag-panel';
+
+        if (state.tag) {
+            const clear = document.createElement('button');
+            clear.type = 'button';
+            clear.className = 'picker-tag-clear';
+            clear.dataset.pickerFilterKind = 'tag';
+            clear.dataset.pickerFilterValue = '';
+            clear.textContent = '清除標籤篩選';
+            panel.appendChild(clear);
+        }
+
+        const equipment = tags.filter(tag => EQUIPMENT_TAG_ORDER.includes(tag));
+        const movement = tags.filter(tag => MOVEMENT_TAG_ORDER.includes(tag));
+        const type = tags.filter(tag => TYPE_TAG_ORDER.includes(tag));
+        const known = new Set([...equipment, ...movement, ...type]);
+        const other = tags.filter(tag => !known.has(tag));
+
+        if (equipment.length) panel.appendChild(createTagGroup('器材', equipment, state.tag));
+        if (movement.length) panel.appendChild(createTagGroup('模式', movement, state.tag));
+        if (type.length) panel.appendChild(createTagGroup('類型', type, state.tag));
+        if (other.length) panel.appendChild(createTagGroup('其他', other, state.tag));
+        control.appendChild(panel);
+    }
+
+    row.appendChild(control);
     container.appendChild(row);
 }
 
@@ -125,14 +232,20 @@ function renderFilters(app) {
     const container = document.getElementById('exercise-filter-chips');
     if (!container) return;
     const state = pickerState(app);
-    container.innerHTML = '';
-    renderChipRow(container, '部位', 'category', CATEGORY_ORDER, state.category);
+    const catalog = getCatalog(app);
+    const allCategories = getAvailablePickerCategories(catalog);
+    const allTags = getAvailablePickerTags(catalog);
 
-    const orderedTags = [
-        ...EQUIPMENT_TAG_ORDER,
-        ...ALL_TAGS.filter(tag => !EQUIPMENT_TAG_ORDER.includes(tag)),
-    ];
-    renderChipRow(container, '標籤', 'tag', orderedTags, state.tag);
+    if (state.category && !allCategories.includes(state.category)) state.category = '';
+    if (state.tag && !allTags.includes(state.tag)) state.tag = '';
+
+    const categories = getAvailablePickerCategories(catalog, state.tag);
+    const tags = getAvailablePickerTags(catalog, state.category);
+    if (!tags.length) state.tagOpen = false;
+
+    container.innerHTML = '';
+    if (categories.length) renderChipRow(container, '部位', 'category', categories, state.category);
+    renderTagRow(container, tags, state);
 }
 
 function renderSectionTitle(list, title, count = null) {
@@ -263,13 +376,21 @@ function installDelegatedEvents(app) {
     if (filters && !filters.dataset.pickerV2Bound) {
         filters.dataset.pickerV2Bound = '1';
         filters.addEventListener('click', event => {
+            const state = pickerState(app);
+            const tagToggle = event.target.closest('[data-picker-tag-toggle]');
+            if (tagToggle && filters.contains(tagToggle) && !tagToggle.disabled) {
+                state.tagOpen = !state.tagOpen;
+                renderFilters(app);
+                return;
+            }
+
             const chip = event.target.closest('[data-picker-filter-kind]');
             if (!chip || !filters.contains(chip)) return;
-            const state = pickerState(app);
             const kind = chip.dataset.pickerFilterKind;
             const value = chip.dataset.pickerFilterValue || '';
             if (kind !== 'category' && kind !== 'tag') return;
-            state[kind] = state[kind] === value ? '' : value;
+            state[kind] = value && state[kind] === value ? '' : value;
+            if (kind === 'tag') state.tagOpen = false;
             renderPicker(app);
         });
     }
@@ -307,6 +428,7 @@ export function installWorkoutPickerV2(app) {
         const state = pickerState(app);
         state.category = '';
         state.tag = '';
+        state.tagOpen = false;
         const input = document.getElementById('autocomplete-input');
         if (input) input.placeholder = '搜尋動作、部位或標籤...';
         installDelegatedEvents(app);
@@ -336,6 +458,7 @@ export function installWorkoutPickerV2(app) {
         const state = pickerState(app);
         if (CATEGORY_ORDER.includes(value)) state.category = state.category === value ? '' : value;
         else state.tag = state.tag === value ? '' : value;
+        state.tagOpen = false;
         renderPicker(app);
     };
 }
