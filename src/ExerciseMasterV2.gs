@@ -239,6 +239,49 @@ function _readExerciseMetadataFromContext(context) {
   return { metadataMap: metadataMap, data: data };
 }
 
+/**
+ * Picker taxonomy backfill: fill only blank Tags cells, never overwrite manual tags
+ * and never infer behavioral metadata such as TrackingType/LoadMode/Laterality.
+ * Reuses the ExerciseMaster rows already read for catalog construction, so normal
+ * bootstrap does not pay an extra Sheet read.
+ */
+function _backfillBlankExerciseTagsFromRead(context, read) {
+  if (!context || !read || !Array.isArray(read.data) || read.data.length === 0) return 0;
+
+  const motionColumn = context.headerMap.Motion;
+  const tagsColumn = context.headerMap.Tags;
+  if (!motionColumn || !tagsColumn) return 0;
+
+  const tagValues = read.data.map(function (row) { return [row[tagsColumn - 1]]; });
+  let tagsBackfilled = 0;
+
+  read.data.forEach(function (row, index) {
+    const motion = String(row[motionColumn - 1] || '').trim();
+    if (!motion || !_isBlankExerciseMetadataValue(row[tagsColumn - 1])) return;
+
+    const suggestion = suggestClassification(motion);
+    const tags = suggestion && Array.isArray(suggestion.tags)
+      ? suggestion.tags.map(function (tag) { return String(tag || '').trim(); }).filter(Boolean)
+      : [];
+    if (tags.length === 0) return;
+
+    const value = tags.join(',');
+    row[tagsColumn - 1] = value;
+    tagValues[index][0] = value;
+    tagsBackfilled += 1;
+
+    const metadata = _exerciseMetadataFromRow(row, context.headerMap);
+    if (metadata) read.metadataMap.set(motion, metadata);
+  });
+
+  if (tagsBackfilled > 0) {
+    context.sheet.getRange(2, tagsColumn, tagValues.length, 1).setValues(tagValues);
+    Logger.log('ExerciseMaster tag backfill: tags=' + tagsBackfilled);
+  }
+
+  return tagsBackfilled;
+}
+
 function _setExerciseRowValue(row, headerMap, header, value) {
   const column = headerMap[header];
   if (column) row[column - 1] = value;
@@ -328,5 +371,7 @@ function _prepareWorkoutExerciseMetadata(userSheet, motionNames) {
 
 function _getExerciseMetadataMap(userSheet) {
   const context = _getExerciseMasterV2ReadContext(userSheet);
-  return _readExerciseMetadataFromContext(context).metadataMap;
+  const read = _readExerciseMetadataFromContext(context);
+  _backfillBlankExerciseTagsFromRead(context, read);
+  return read.metadataMap;
 }
