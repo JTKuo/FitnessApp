@@ -234,6 +234,14 @@
     font-weight: 600;
 }
 
+.picker-exercise-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 2.8rem;
+    align-items: stretch;
+    gap: 0.35rem;
+    margin-bottom: 0.35rem;
+}
+
 .picker-exercise-item {
     width: 100%;
     min-height: 3.3rem;
@@ -250,11 +258,46 @@
     text-align: left;
 }
 
+.picker-exercise-row .picker-exercise-item {
+    min-width: 0;
+    margin-bottom: 0;
+}
+
 .picker-exercise-item:active,
 .picker-exercise-item:focus-visible {
     border-color: rgba(255, 195, 0, 0.85);
     background: rgba(255, 195, 0, 0.08);
     outline: none;
+}
+
+.picker-favorite-toggle {
+    width: 2.8rem;
+    min-height: 3.3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(75, 85, 99, 0.7);
+    border-radius: 0.6rem;
+    color: #9ca3af;
+    background: rgba(17, 24, 39, 0.72);
+    font-size: 1.2rem;
+    line-height: 1;
+}
+
+.picker-favorite-toggle.is-active {
+    border-color: rgba(255, 195, 0, 0.78);
+    color: #ffd43b;
+    background: rgba(255, 195, 0, 0.1);
+}
+
+.picker-favorite-toggle:active,
+.picker-favorite-toggle:focus-visible {
+    border-color: #ffc300;
+    outline: none;
+}
+
+.picker-favorite-toggle:disabled {
+    opacity: 0.48;
 }
 
 .picker-exercise-main {
