@@ -14,6 +14,7 @@ import { initAuth } from './auth.js';
 import { app } from './app.js';
 import { installInBodySubmitGuard } from './inbody-submit-guard.js';
 import { installWorkoutPickerV2 } from './workout-picker-v2.js';
+import { installDurationUnilateral } from './duration-unilateral.js';
 import './per-hand-unit-presentation.js';
 
 // 搬移的程式碼以全域名稱引用這些函式庫，維持原樣、以掛載頂替 CDN
@@ -28,6 +29,9 @@ installInBodySubmitGuard(app);
 
 // Workout Picker 2.0：最近使用、分類/Tag 與跨 metadata 搜尋。
 installWorkoutPickerV2(app);
+
+// Laterality 與 tracking type 解耦：duration + unilateral 也能選左右並寫入 WorkoutLog。
+installDurationUnilateral(app);
 
 // PWA 自動更新：service worker 在背景安裝新版後會接管頁面，但此時畫面上跑的
 // 仍是舊版程式碼，造成「部署了卻沒生效」的假象（已兩度導致驗收誤判）。
