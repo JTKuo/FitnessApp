@@ -58,10 +58,10 @@
 
 @media (max-width: 420px) {
     .picker-exercise-row.has-demo-media {
-        grid-template-columns: minmax(0, 1fr) 2.65rem 2.65rem;
+        grid-template-columns: minmax(0, 1fr) 2.75rem 2.75rem;
     }
 
     .picker-demo-toggle {
-        width: 2.65rem;
+        width: 2.75rem;
     }
 }
