@@ -72,6 +72,13 @@ function ensureModal() {
     return modal;
 }
 
+function resetSaveButton(modal) {
+    const saveButton = modal?.querySelector('[data-setup-action="save"]');
+    if (!saveButton) return;
+    saveButton.disabled = false;
+    saveButton.textContent = '建立動作';
+}
+
 function renderSetup(modal, state) {
     const motionEl = modal.querySelector('[data-setup-motion]');
     const content = modal.querySelector('[data-setup-content]');
@@ -154,11 +161,19 @@ export function openNewExerciseSetup(app, motion, options = {}) {
     const state = normalizeNewExerciseSetup({ motion: normalizedMotion, defaultRestSec: DEFAULT_REST_SEC });
     let saving = false;
 
+    // The modal DOM is reused between creations. Always clear the previous
+    // submission state before showing it again, otherwise a successful first
+    // creation leaves the next save button disabled with "建立中…".
+    resetSaveButton(modal);
     if (pickerModal) pickerModal.classList.add('hidden');
     modal.classList.remove('hidden');
     renderSetup(modal, state);
 
     const close = (returnToPicker) => {
+        saving = false;
+        resetSaveButton(modal);
+        modal.onclick = null;
+        modal.oninput = null;
         modal.classList.add('hidden');
         if (returnToPicker && pickerModal) {
             pickerModal.classList.remove('hidden');
@@ -191,8 +206,7 @@ export function openNewExerciseSetup(app, motion, options = {}) {
                 } catch (error) {
                     app.methods.handleError(error, '建立新動作失敗');
                     saving = false;
-                    saveButton.disabled = false;
-                    saveButton.textContent = '建立動作';
+                    resetSaveButton(modal);
                 }
                 return;
             }
