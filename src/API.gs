@@ -216,6 +216,7 @@ function getInitialData(authedEmail, userEmail = null) {
     // --- 任務 4: 取得動作目錄與 runtime metadata（ExerciseMaster + WorkoutLog 聯集） ---
     const exerciseCatalog = _buildExerciseCatalogForUserSheet(userSheet);
     const exerciseNames = exerciseCatalog.map(function (item) { return item.motion; });
+    const recentExerciseNames = _getRecentExerciseNamesForPicker(userSheet, 8);
 
     // --- 將所有結果打包回傳 ---
     Logger.log(`為 ${targetEmail} 準備回傳所有初始資料。`);
@@ -224,7 +225,8 @@ function getInitialData(authedEmail, userEmail = null) {
       allUsers: allUsers,       // 所有使用者列表 (僅 admin 有效)
       templates: templates,     // 目標使用者的範本
       exerciseNames: exerciseNames, // 目標使用者的動作名稱列表
-      exerciseCatalog: exerciseCatalog // ExerciseMaster V2 runtime metadata
+      exerciseCatalog: exerciseCatalog, // ExerciseMaster V2 runtime metadata
+      recentExerciseNames: recentExerciseNames // Workout Picker 2.0 newest-first unique motions
     };
 
   } catch (e) {
