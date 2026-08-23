@@ -1,0 +1,67 @@
+.picker-exercise-row.has-demo-media {
+    grid-template-columns: minmax(0, 1fr) 2.8rem 2.8rem;
+}
+
+.picker-demo-toggle {
+    width: 2.8rem;
+    min-height: 3.3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(75, 85, 99, 0.7);
+    border-radius: 0.6rem;
+    color: #9ca3af;
+    background: rgba(17, 24, 39, 0.72);
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.picker-demo-toggle.is-active,
+.picker-demo-toggle:active,
+.picker-demo-toggle:focus-visible {
+    border-color: rgba(255, 195, 0, 0.82);
+    color: #ffd43b;
+    background: rgba(255, 195, 0, 0.09);
+    outline: none;
+}
+
+.picker-demo-panel {
+    grid-column: 1 / -1;
+    overflow: hidden;
+    border: 1px solid rgba(75, 85, 99, 0.75);
+    border-radius: 0.7rem;
+    background: rgba(8, 10, 13, 0.96);
+}
+
+.picker-demo-panel img,
+.picker-demo-panel video,
+.picker-demo-panel iframe {
+    display: block;
+    width: 100%;
+    max-height: min(42vh, 19rem);
+    border: 0;
+    background: #000;
+    object-fit: contain;
+}
+
+.picker-demo-panel iframe {
+    aspect-ratio: 16 / 9;
+    max-height: none;
+}
+
+.picker-demo-error {
+    padding: 0.8rem;
+    color: #9ca3af;
+    font-size: 0.75rem;
+    text-align: center;
+}
+
+@media (max-width: 420px) {
+    .picker-exercise-row.has-demo-media {
+        grid-template-columns: minmax(0, 1fr) 2.75rem 2.75rem;
+    }
+
+    .picker-demo-toggle {
+        width: 2.75rem;
+    }
+}
