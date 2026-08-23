@@ -256,7 +256,7 @@ function installDelegatedEvents(app) {
             if (!motion) return;
             bumpRecentName(app, motion);
             if (app.state.modal.promptCallback) app.state.modal.promptCallback(motion);
-        });
+        }, true);
     }
 
     const filters = document.getElementById('exercise-filter-chips');
