@@ -79,3 +79,5 @@ jobs:
           fi
           git commit -m 'feat: add InBody V3 history and profile snapshot [validated]'
           git push
+
+# trigger: 2026-08-23
