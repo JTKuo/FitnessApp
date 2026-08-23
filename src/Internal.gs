@@ -418,7 +418,8 @@ function _writeNewLog(sheet, date, workoutData, savedAdminComments) {
         weight_lbs = (set.unit === '磅')
           ? set.weight
           : parseFloat((set.weight * KG_TO_LB).toFixed(2));
-        volume = weight_kg * set.reps;
+        const loadMultiplier = (setFields.loadMode === 'per_hand' && setFields.side === 'both') ? 2 : 1;
+        volume = weight_kg * set.reps * loadMultiplier;
       }
       exerciseTotalVolume += volume;
 

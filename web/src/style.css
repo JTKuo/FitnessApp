@@ -671,3 +671,32 @@
 .workout-duration-field .workout-set-input {
     text-align: center;
 }
+
+
+/* --- Unilateral / per-hand v1 --- */
+.workout-side-toggle {
+    flex: 0 0 auto;
+    min-width: 2.2rem;
+    align-self: stretch;
+    border: 0;
+    border-right: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 195, 0, 0.055);
+    color: #d9c16e;
+    font-size: 0.7rem;
+    font-weight: 800;
+    transition: background-color 150ms ease, color 150ms ease;
+}
+
+.workout-side-toggle:active {
+    background: rgba(255, 195, 0, 0.13);
+    color: #ffd55f;
+}
+
+.workout-side-toggle.hidden {
+    display: none;
+}
+
+.workout-exercise-card .workout-unit-select[data-load-mode="per_hand"] {
+    width: 3.8rem;
+    font-size: 0.67rem;
+}
