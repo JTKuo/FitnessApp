@@ -43,6 +43,10 @@ function _normalizeExerciseSetupPayload(metadata) {
  * Create or explicitly update one ExerciseMaster metadata row.
  * Existing ExerciseId / Category / Tags are preserved; new rows receive taxonomy
  * suggestions for Category/Tags and a stable ExerciseId.
+ *
+ * This endpoint is intentionally idempotent by Motion. The frontend may retry a
+ * timed-out transport request, so concurrent attempts are serialized here to
+ * prevent two executions from both observing "row missing" and appending twice.
  */
 function saveExerciseMetadata(authedEmail, requestedEmail, metadata) {
   const normalized = _normalizeExerciseSetupPayload(metadata);
@@ -50,49 +54,55 @@ function saveExerciseMetadata(authedEmail, requestedEmail, metadata) {
   const userSheet = _getUserSheet(target.targetEmail, true);
   if (!userSheet) throw new Error('找不到您的資料檔案。');
 
-  const context = _getExerciseMasterV2ReadContext(userSheet);
-  const sheet = context.sheet;
-  const read = _readExerciseMetadataFromContext(context);
-  const width = sheet.getLastColumn();
-  const motionColumn = context.headerMap.Motion;
-  let rowIndex = -1;
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    const context = _getExerciseMasterV2ReadContext(userSheet);
+    const sheet = context.sheet;
+    const read = _readExerciseMetadataFromContext(context);
+    const width = sheet.getLastColumn();
+    const motionColumn = context.headerMap.Motion;
+    let rowIndex = -1;
 
-  for (let i = 0; i < read.data.length; i++) {
-    const motion = motionColumn ? String(read.data[i][motionColumn - 1] || '').trim() : '';
-    if (motion === normalized.motion) {
-      rowIndex = i;
-      break;
+    for (let i = 0; i < read.data.length; i++) {
+      const motion = motionColumn ? String(read.data[i][motionColumn - 1] || '').trim() : '';
+      if (motion === normalized.motion) {
+        rowIndex = i;
+        break;
+      }
     }
+
+    let row;
+    if (rowIndex >= 0) {
+      row = read.data[rowIndex].slice();
+    } else {
+      const suggestion = suggestClassification(normalized.motion);
+      row = _buildExerciseMasterV2Row(
+        width,
+        context.headerMap,
+        normalized.motion,
+        suggestion.category,
+        suggestion.tags
+      );
+    }
+
+    _setExerciseRowValue(row, context.headerMap, 'TrackingType', normalized.trackingType);
+    _setExerciseRowValue(row, context.headerMap, 'LoadMode', normalized.loadMode);
+    _setExerciseRowValue(row, context.headerMap, 'Laterality', normalized.laterality);
+    _setExerciseRowValue(row, context.headerMap, 'DefaultRestSec', normalized.defaultRestSec);
+    _setExerciseRowValue(row, context.headerMap, 'Active', true);
+
+    if (rowIndex >= 0) {
+      sheet.getRange(rowIndex + 2, 1, 1, width).setValues([row]);
+    } else {
+      sheet.getRange(sheet.getLastRow() + 1, 1, 1, width).setValues([row]);
+    }
+
+    CacheService.getUserCache().remove('category_map_' + userSheet.getId());
+    const saved = _exerciseMetadataFromRow(row, context.headerMap);
+    if (!saved) throw new Error('動作設定儲存失敗。');
+    return saved;
+  } finally {
+    lock.releaseLock();
   }
-
-  let row;
-  if (rowIndex >= 0) {
-    row = read.data[rowIndex].slice();
-  } else {
-    const suggestion = suggestClassification(normalized.motion);
-    row = _buildExerciseMasterV2Row(
-      width,
-      context.headerMap,
-      normalized.motion,
-      suggestion.category,
-      suggestion.tags
-    );
-  }
-
-  _setExerciseRowValue(row, context.headerMap, 'TrackingType', normalized.trackingType);
-  _setExerciseRowValue(row, context.headerMap, 'LoadMode', normalized.loadMode);
-  _setExerciseRowValue(row, context.headerMap, 'Laterality', normalized.laterality);
-  _setExerciseRowValue(row, context.headerMap, 'DefaultRestSec', normalized.defaultRestSec);
-  _setExerciseRowValue(row, context.headerMap, 'Active', true);
-
-  if (rowIndex >= 0) {
-    sheet.getRange(rowIndex + 2, 1, 1, width).setValues([row]);
-  } else {
-    sheet.getRange(sheet.getLastRow() + 1, 1, 1, width).setValues([row]);
-  }
-
-  CacheService.getUserCache().remove('category_map_' + userSheet.getId());
-  const saved = _exerciseMetadataFromRow(row, context.headerMap);
-  if (!saved) throw new Error('動作設定儲存失敗。');
-  return saved;
 }

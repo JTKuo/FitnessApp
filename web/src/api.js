@@ -29,28 +29,59 @@ function releaseRequestSlot() {
 
 // GAS 的 /exec 會先回一個轉址到 googleusercontent 的一次性網址，該轉址在服務層
 // 會間歇性回 404（已排除本專案程式碼、併發、service worker、CORS 與部署劣化）。
-// 重試可有效緩解，但有個前提：404 發生在轉址階段，代表後端腳本「已經執行完畢」——
-// 盲目重試寫入類請求會造成重複寫入（訓練被存兩次）。故僅重試唯讀 action。
+// 一般寫入不能盲目 retry，否則可能重複寫入；僅明確具備 idempotent upsert 語意的 action 例外。
 const READ_ONLY_ACTIONS = new Set([
   'getInitialData', 'getLatestPerformance', 'getUniqueExerciseNames', 'getAnalysisData',
   'getWorkoutTemplates', 'getAllPhotoRecords', 'getAllPRs', 'getPhoto',
   'getInBodyRecords', 'getExerciseCatalog',
 ]);
+const IDEMPOTENT_WRITE_ACTIONS = new Set([
+  // 依 Motion upsert，後端另有 LockService 保護；重送不會新增第二列。
+  'saveExerciseMetadata',
+]);
+const ACTION_TIMEOUT_MS = {
+  // 避免 GAS redirect/network 卡住時 UI 永久停在「建立中…」。
+  saveExerciseMetadata: 12000,
+};
 const MAX_READ_ATTEMPTS = 3;
+const MAX_IDEMPOTENT_WRITE_ATTEMPTS = 2;
 
 function isTransportFailure(err) {
-  return /伺服器錯誤 \(HTTP /.test(err.message);
+  if (!err) return false;
+  if (err.code === 'REQUEST_TIMEOUT' || err.name === 'AbortError') return true;
+  if (err instanceof TypeError) return true; // fetch network / redirect failure
+  return /伺服器錯誤 \(HTTP |回應逾時|Failed to fetch|Load failed|NetworkError/i.test(err.message || '');
 }
 
 async function postOnce(body) {
   await acquireRequestSlot();
+  const timeoutMs = Number(ACTION_TIMEOUT_MS[body.action]) || 0;
+  const controller = timeoutMs > 0 ? new AbortController() : null;
+  let timeoutId = null;
+
+  if (controller) {
+    timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  }
+
   try {
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // 避開 CORS preflight
-      body: JSON.stringify(body),
-      redirect: 'follow',
-    });
+    let res;
+    try {
+      res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // 避開 CORS preflight
+        body: JSON.stringify(body),
+        redirect: 'follow',
+        ...(controller ? { signal: controller.signal } : {}),
+      });
+    } catch (err) {
+      if (controller?.signal.aborted || err?.name === 'AbortError') {
+        const timeoutError = new Error('伺服器回應逾時。');
+        timeoutError.code = 'REQUEST_TIMEOUT';
+        throw timeoutError;
+      }
+      throw err;
+    }
+
     if (!res.ok) throw new Error(`伺服器錯誤 (HTTP ${res.status})`);
     const json = await res.json();
     if (json.token) storeSessionToken(json.token); // 滑動續期
@@ -59,19 +90,23 @@ async function postOnce(body) {
     }
     return json.data;
   } finally {
+    if (timeoutId) clearTimeout(timeoutId);
     releaseRequestSlot();
   }
 }
 
 async function post(body) {
-  const attempts = READ_ONLY_ACTIONS.has(body.action) ? MAX_READ_ATTEMPTS : 1;
+  const attempts = READ_ONLY_ACTIONS.has(body.action)
+    ? MAX_READ_ATTEMPTS
+    : (IDEMPOTENT_WRITE_ACTIONS.has(body.action) ? MAX_IDEMPOTENT_WRITE_ATTEMPTS : 1);
   let lastError;
   for (let i = 0; i < attempts; i++) {
     try {
       return await postOnce(body);
     } catch (err) {
       lastError = err;
-      // 僅重試傳輸層失敗；後端回的業務錯誤（憑證、驗證等）立即拋出
+      // 僅 retry 傳輸層失敗；後端已回應的業務錯誤（憑證、驗證等）立即拋出。
+      // 寫入只有 IDEMPOTENT_WRITE_ACTIONS 會進到 attempts > 1。
       if (!isTransportFailure(err) || i === attempts - 1) throw err;
       await new Promise((resolve) => setTimeout(resolve, 400 * (i + 1)));
     }
