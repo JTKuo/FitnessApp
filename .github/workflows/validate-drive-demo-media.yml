@@ -1,0 +1,58 @@
+name: Validate Drive demo media branch
+
+on:
+  push:
+    branches:
+      - feature/drive-demo-media
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Apply Drive demo patch
+        run: node scripts/apply-drive-demo-patch.mjs
+
+      - name: Guard scope
+        run: |
+          git diff --check
+          if git diff | grep -q 'MutationObserver'; then
+            echo 'New MutationObserver usage is not allowed.'
+            exit 1
+          fi
+
+      - name: Install
+        working-directory: web
+        run: npm ci
+
+      - name: Test
+        working-directory: web
+        run: npm test
+
+      - name: Build
+        working-directory: web
+        run: npm run build
+
+      - name: Commit validated player patch
+        run: |
+          if git diff --quiet; then
+            echo 'No product patch to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add web/src/workout-picker-v2.js
+          git commit -m 'feat: play Drive exercise demos with fallback preview'
+          git push
