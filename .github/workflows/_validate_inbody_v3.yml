@@ -41,7 +41,8 @@ jobs:
         shell: bash
         run: |
           for file in src/*.gs; do
-            node --check <(cat "$file") >/dev/null
+            cp "$file" /tmp/_fitnessapp_gas_check.js
+            node --check /tmp/_fitnessapp_gas_check.js >/dev/null
           done
 
       - uses: actions/setup-node@v4
@@ -80,4 +81,4 @@ jobs:
           git commit -m 'feat: add InBody V3 history and profile snapshot [validated]'
           git push
 
-# trigger: 2026-08-23
+# trigger: syntax-check-v2
