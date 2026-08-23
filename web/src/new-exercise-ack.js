@@ -118,10 +118,12 @@ export function installNewExerciseAck(app) {
     app.api.saveExerciseMetadata = async (...args) => {
       fetchAttempt = 0;
       const motion = args?.[0]?.motion || '-';
-      setAck('API_CALL', `motion=${motion}`);
+      // saveExerciseMetadata 已進 API layer；若一直停在這裡，代表尚未走到 fetch，
+      // 通常就是 token / request gate / pre-fetch 階段。
+      setAck('QUEUED', `motion=${motion}`);
       try {
         const result = await originalSaveExerciseMetadata(...args);
-        setAck('API_OK', `motion=${result?.motion || motion}`);
+        setAck('OK', `motion=${result?.motion || motion}`);
         return result;
       } catch (error) {
         setAck('API_ERR', `${error?.code || error?.name || 'ERR'} ${error?.message || ''}`);
@@ -142,7 +144,8 @@ export function installNewExerciseAck(app) {
     if (action !== TARGET_ACTION) return originalFetch(input, init);
 
     fetchAttempt += 1;
-    setAck('FETCH', `attempt=${fetchAttempt}`);
+    // 能走到 window.fetch，代表 request gate 已放行。
+    setAck('SLOT/FETCH', `attempt=${fetchAttempt}`);
     try {
       const response = await originalFetch(input, init);
       setAck('HTTP', `attempt=${fetchAttempt} status=${response.status}`);
