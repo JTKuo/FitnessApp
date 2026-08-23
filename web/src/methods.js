@@ -4,6 +4,7 @@ import { renderDrivePhoto } from './photos.js';
 import { CATEGORY_ORDER, ALL_TAGS } from './exercise-taxonomy.js';
 import { normalizeSetType, SET_TYPE } from './set-type.js';
 import { formatDuration, normalizeDurationSec, normalizeTrackingType, TRACKING_TYPE } from './tracking-type.js';
+import { calculateSetVolumeKg, LATERALITY, LOAD_MODE, normalizeLaterality, normalizeLoadMode, resolveSide, SIDE } from './load-semantics.js';
 
 export const methods = {
                 handleError(error, contextMessage = "發生錯誤") {
@@ -1116,9 +1117,12 @@ export const methods = {
                       const exerciseName = card.querySelector('h3').textContent;
                       const exerciseId = card.dataset.exerciseId || '';
                       const trackingType = normalizeTrackingType(card.dataset.trackingType);
+                      const loadMode = normalizeLoadMode(card.dataset.loadMode);
+                      const laterality = normalizeLaterality(card.dataset.laterality);
                       const note = card.querySelector('.js-exercise-note').value;
                       card.querySelectorAll('.js-set-row').forEach((set, index) => {
                         const setType = normalizeSetType(set.querySelector('.js-set-type-toggle')?.dataset.setType);
+                        const side = resolveSide(laterality, set.querySelector('.js-side-toggle')?.dataset.side);
                         if (trackingType === TRACKING_TYPE.DURATION) {
                           const durationSec = normalizeDurationSec(set.querySelector('.js-duration-input')?.value);
                           if (durationSec <= 0) return;
@@ -1131,7 +1135,7 @@ export const methods = {
                         let weightInKg = weight;
                         if (unit === '磅') weightInKg = parseFloat((weight * LB_TO_KG).toFixed(2));
                         if (weight > 0 || reps > 0) {
-                          workoutData.push({ date: dateToSave, motion: exerciseName, exercise_id: exerciseId, set: index + 1, weight: weight, unit: unit, reps: reps, weight_in_kg: weightInKg, set_type: setType, tracking_type: TRACKING_TYPE.WEIGHT_REPS, note: note });
+                          workoutData.push({ date: dateToSave, motion: exerciseName, exercise_id: exerciseId, set: index + 1, weight: weight, unit: unit, reps: reps, weight_in_kg: weightInKg, set_type: setType, tracking_type: TRACKING_TYPE.WEIGHT_REPS, side: side, load_mode: loadMode, note: note });
                         }
                       });
                     });
@@ -1145,12 +1149,15 @@ export const methods = {
                     let dailyTotalVolumeInKg = 0;
                     allExerciseCards.forEach(card => {
                         if (normalizeTrackingType(card.dataset.trackingType) !== TRACKING_TYPE.WEIGHT_REPS) return;
+                        const loadMode = normalizeLoadMode(card.dataset.loadMode);
+                        const laterality = normalizeLaterality(card.dataset.laterality);
                         card.querySelectorAll('.js-set-row').forEach(set => {
                             let weight = parseFloat(set.querySelector('.js-weight-input')?.value) || 0;
                             const reps = parseInt(set.querySelector('.js-reps-input')?.value) || 0;
                             const unit = set.querySelector('.js-unit-select')?.value || '公斤';
                             if (unit === '磅') weight *= LB_TO_KG;
-                            dailyTotalVolumeInKg += weight * reps;
+                            const side = resolveSide(laterality, set.querySelector('.js-side-toggle')?.dataset.side);
+                            dailyTotalVolumeInKg += calculateSetVolumeKg(weight, reps, loadMode, side);
                         });
                     });
                     const displayElement = document.getElementById('daily-total-volume-display');
@@ -1172,6 +1179,8 @@ export const methods = {
                     }
                     const LB_TO_KG = 0.45359237;
                     const KG_TO_LB = 2.20462262;
+                    const loadMode = normalizeLoadMode(exerciseCard.dataset.loadMode);
+                    const laterality = normalizeLaterality(exerciseCard.dataset.laterality);
                     let totalVolumeInKg = 0;
                     let displayUnit = '公斤';
                     if (sets.length > 0) displayUnit = sets[0].querySelector('.js-unit-select')?.value || '公斤';
@@ -1180,7 +1189,8 @@ export const methods = {
                         const reps = parseInt(set.querySelector('.js-reps-input')?.value) || 0;
                         const unit = set.querySelector('.js-unit-select')?.value || '公斤';
                         if (unit === '磅') weight *= LB_TO_KG;
-                        totalVolumeInKg += weight * reps;
+                        const side = resolveSide(laterality, set.querySelector('.js-side-toggle')?.dataset.side);
+                        totalVolumeInKg += calculateSetVolumeKg(weight, reps, loadMode, side);
                     });
                     let displayVolume = displayUnit === '磅' ? totalVolumeInKg * KG_TO_LB : totalVolumeInKg;
                     if (labelElement) labelElement.textContent = '容量';
@@ -1203,14 +1213,63 @@ export const methods = {
                     setRow.dataset.trackingType = trackingType;
                     setRow.querySelector('.js-weight-reps-inputs')?.classList.toggle('hidden', trackingType !== TRACKING_TYPE.WEIGHT_REPS);
                     setRow.querySelector('.js-duration-inputs')?.classList.toggle('hidden', trackingType !== TRACKING_TYPE.DURATION);
+                    const laterality = normalizeLaterality(setRow.dataset.laterality);
+                    setRow.querySelector('.js-side-toggle')?.classList.toggle('hidden', trackingType !== TRACKING_TYPE.WEIGHT_REPS || laterality !== LATERALITY.UNILATERAL);
+                },
+
+                applyLoadMetadataToSet(setRow, loadModeValue, lateralityValue, sideValue) {
+                    if (!setRow) return;
+                    const loadMode = normalizeLoadMode(loadModeValue);
+                    const laterality = normalizeLaterality(lateralityValue);
+                    const side = resolveSide(laterality, sideValue ?? setRow.dataset.side);
+                    setRow.dataset.loadMode = loadMode;
+                    setRow.dataset.laterality = laterality;
+                    setRow.dataset.side = side;
+
+                    const sideToggle = setRow.querySelector('.js-side-toggle');
+                    if (sideToggle) {
+                        sideToggle.dataset.side = side;
+                        sideToggle.querySelector('.js-side-label').textContent = side === SIDE.RIGHT ? '右' : '左';
+                        sideToggle.setAttribute('aria-label', side === SIDE.RIGHT ? '目前為右側，點擊切換左側' : '目前為左側，點擊切換右側');
+                        sideToggle.classList.toggle('hidden', normalizeTrackingType(setRow.dataset.trackingType) !== TRACKING_TYPE.WEIGHT_REPS || laterality !== LATERALITY.UNILATERAL);
+                    }
+
+                    const unitSelect = setRow.querySelector('.js-unit-select');
+                    if (unitSelect) {
+                        unitSelect.dataset.loadMode = loadMode;
+                        const kgOption = unitSelect.querySelector('option[value="公斤"]');
+                        const lbOption = unitSelect.querySelector('option[value="磅"]');
+                        if (kgOption) kgOption.textContent = loadMode === LOAD_MODE.PER_HAND ? 'kg/手' : 'kg';
+                        if (lbOption) lbOption.textContent = loadMode === LOAD_MODE.PER_HAND ? 'lb/手' : 'lb';
+                    }
+                },
+
+                toggleSide(button) {
+                    if (!button) return;
+                    const current = button.dataset.side === SIDE.RIGHT ? SIDE.RIGHT : SIDE.LEFT;
+                    const next = current === SIDE.LEFT ? SIDE.RIGHT : SIDE.LEFT;
+                    button.dataset.side = next;
+                    const setRow = button.closest('.js-set-row');
+                    if (setRow) setRow.dataset.side = next;
+                    const label = button.querySelector('.js-side-label');
+                    if (label) label.textContent = next === SIDE.RIGHT ? '右' : '左';
+                    button.setAttribute('aria-label', next === SIDE.RIGHT ? '目前為右側，點擊切換左側' : '目前為左側，點擊切換右側');
+                    button.dispatchEvent(new Event('change', { bubbles: true }));
                 },
 
                 applyTrackingTypeToCard(card, value, metadata = null) {
                     if (!card) return;
                     const trackingType = normalizeTrackingType(value);
                     card.dataset.trackingType = trackingType;
+                    const loadMode = normalizeLoadMode(metadata?.loadMode || card.dataset.loadMode);
+                    const laterality = normalizeLaterality(metadata?.laterality || card.dataset.laterality);
+                    card.dataset.loadMode = loadMode;
+                    card.dataset.laterality = laterality;
                     if (metadata?.exerciseId) card.dataset.exerciseId = metadata.exerciseId;
-                    card.querySelectorAll('.js-set-row').forEach((setRow) => this.applyTrackingTypeToSet(setRow, trackingType));
+                    card.querySelectorAll('.js-set-row').forEach((setRow) => {
+                        this.applyTrackingTypeToSet(setRow, trackingType);
+                        this.applyLoadMetadataToSet(setRow, loadMode, laterality, setRow.dataset.side);
+                    });
                     this.calculateVolume(card);
                 },
 
@@ -1261,7 +1320,7 @@ export const methods = {
                 },
 
                 // 輔助函式：專門用來從模板創建一個「組」元素
-                createSetElement(setNumber, trackingType = TRACKING_TYPE.WEIGHT_REPS) {
+                createSetElement(setNumber, trackingType = TRACKING_TYPE.WEIGHT_REPS, loadMode = LOAD_MODE.TOTAL, laterality = LATERALITY.BILATERAL, side = SIDE.BOTH) {
                     const template = document.getElementById('set-row-template');
                     const newSet = document.importNode(template.content, true); // 複製模板
                     
@@ -1269,6 +1328,7 @@ export const methods = {
                     newSet.querySelector('.js-set-number').textContent = `SET ${setNumber}`;
                     this.applySetTypeToToggle(newSet.querySelector('.js-set-type-toggle'), SET_TYPE.WORKING);
                     this.applyTrackingTypeToSet(newSet.querySelector('.js-set-row'), trackingType);
+                    this.applyLoadMetadataToSet(newSet.querySelector('.js-set-row'), loadMode, laterality, side);
                     return newSet;
                 },
                 
@@ -1277,18 +1337,22 @@ export const methods = {
                     const allSets = setsContainer.querySelectorAll('.js-set-row');
                     const setNumber = allSets.length + 1;
                     const trackingType = normalizeTrackingType(exerciseCard.dataset.trackingType);
+                    const loadMode = normalizeLoadMode(exerciseCard.dataset.loadMode);
+                    const laterality = normalizeLaterality(exerciseCard.dataset.laterality);
                     let lastWeight = '';
                     let lastUnit = '公斤';
                     let lastDuration = '';
+                    let lastSide = resolveSide(laterality, null);
                     let lastSetType = 'working';
                     if (allSets.length > 0) {
                         const lastSet = allSets[allSets.length - 1];
                         lastWeight = lastSet.querySelector('.js-weight-input')?.value || '';
                         lastUnit = lastSet.querySelector('.js-unit-select')?.value || '公斤';
                         lastDuration = lastSet.querySelector('.js-duration-input')?.value || '';
+                        lastSide = resolveSide(laterality, lastSet.querySelector('.js-side-toggle')?.dataset.side);
                         lastSetType = normalizeSetType(lastSet.querySelector('.js-set-type-toggle')?.dataset.setType);
                     }
-                    const newSetElement = this.createSetElement(setNumber, trackingType);
+                    const newSetElement = this.createSetElement(setNumber, trackingType, loadMode, laterality, lastSide);
                     newSetElement.firstElementChild.classList.add('animated-item', 'fade-in');
                     if (newSetElement.querySelector('.js-weight-input')) newSetElement.querySelector('.js-weight-input').value = lastWeight;
                     if (newSetElement.querySelector('.js-unit-select')) newSetElement.querySelector('.js-unit-select').value = lastUnit;
@@ -1498,6 +1562,8 @@ export const methods = {
                     if (!workoutList) return;
                     const metadata = this.getExerciseMetadata(name);
                     const trackingType = normalizeTrackingType(metadata?.trackingType);
+                    const loadMode = normalizeLoadMode(metadata?.loadMode);
+                    const laterality = normalizeLaterality(metadata?.laterality);
                     const template = document.getElementById('exercise-card-template');
                     const newCardFragment = document.importNode(template.content, true);
                     const cardElement = newCardFragment.querySelector('.card');
@@ -1505,8 +1571,10 @@ export const methods = {
                     cardElement.classList.add('animated-item', 'fade-in');
                     cardElement.querySelector('h3').textContent = name;
                     cardElement.dataset.trackingType = trackingType;
+                    cardElement.dataset.loadMode = loadMode;
+                    cardElement.dataset.laterality = laterality;
                     if (metadata?.exerciseId) cardElement.dataset.exerciseId = metadata.exerciseId;
-                    cardElement.querySelector('.js-sets-container').appendChild(this.createSetElement(1, trackingType));
+                    cardElement.querySelector('.js-sets-container').appendChild(this.createSetElement(1, trackingType, loadMode, laterality, resolveSide(laterality, null)));
                     workoutList.appendChild(newCardFragment);
                     setTimeout(() => cardElement.classList.add('is-visible'), 10);
                     const performanceEl = cardElement.querySelector('.js-last-performance');
@@ -1545,6 +1613,7 @@ export const methods = {
                     const lastReps = lastSet.querySelector('.js-reps-input').value;
                     const lastUnit = lastSet.querySelector('.js-unit-select')?.value || '公斤';
                     const lastDuration = lastSet.querySelector('.js-duration-input')?.value || '';
+                    const lastSide = lastSet.querySelector('.js-side-toggle')?.dataset.side || '';
                     const lastSetType = normalizeSetType(lastSet.querySelector('.js-set-type-toggle')?.dataset.setType);
                     
                     // 先新增一個空白組
@@ -1559,6 +1628,8 @@ export const methods = {
                         newSet.querySelector('.js-unit-select').value = lastUnit;
                         const durationInput = newSet.querySelector('.js-duration-input');
                         if (durationInput) durationInput.value = lastDuration;
+                        const sideToggle = newSet.querySelector('.js-side-toggle');
+                        if (sideToggle && lastSide) this.applyLoadMetadataToSet(newSet, exerciseCard.dataset.loadMode, exerciseCard.dataset.laterality, lastSide);
                         const newSetTypeToggle = newSet.querySelector('.js-set-type-toggle');
                         this.applySetTypeToToggle(newSetTypeToggle, lastSetType);
                     }

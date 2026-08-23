@@ -223,8 +223,10 @@ export const events = {
                     const deleteExerciseButton = target.closest('.js-delete-exercise');
                     const copySetButton = target.closest('.js-copy-set');
                     const setTypeToggleButton = target.closest('.js-set-type-toggle');
+                    const sideToggleButton = target.closest('.js-side-toggle');
 
                     if (setTypeToggleButton) app.methods.toggleSetType(setTypeToggleButton);
+                    if (sideToggleButton) app.methods.toggleSide(sideToggleButton);
                     if (addSetButton) app.methods.addSet(exerciseCard);
                     if (deleteSetButton) app.methods.deleteSet(deleteSetButton.closest('.js-set-row'));
                     if (deleteExerciseButton) app.methods.deleteExercise(exerciseCard);

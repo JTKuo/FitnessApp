@@ -693,6 +693,7 @@ function getAnalysisData(authedEmail, userEmail = null) {
         const motion = row[indices[CONSTANTS.HEADERS.MOTION]];
         const reps = row[indices[CONSTANTS.HEADERS.REPS]];
         const weightKg = row[indices[CONSTANTS.HEADERS.WEIGHT_KG]];
+        const persistedVolume = row[indices[CONSTANTS.HEADERS.VOLUME]];
         const note = row[indices[CONSTANTS.HEADERS.NOTES]];
         const adminNote = row[indices[CONSTANTS.HEADERS.ADMIN_COMMENT]];
         
@@ -701,7 +702,7 @@ function getAnalysisData(authedEmail, userEmail = null) {
           if (!dailyWorkouts[dateString]) dailyWorkouts[dateString] = [];
           dailyWorkouts[dateString].push({ 
               motion: motion, reps: parseFloat(reps), weight: parseFloat(weightKg),
-              volume: (parseFloat(reps) * parseFloat(weightKg)),
+              volume: Number.isFinite(parseFloat(persistedVolume)) ? parseFloat(persistedVolume) : (parseFloat(reps) * parseFloat(weightKg)),
               note: note || '',
               adminNote: adminNote || '' 
           });

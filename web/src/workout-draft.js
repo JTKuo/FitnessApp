@@ -1,5 +1,6 @@
 import { normalizeSetType } from './set-type.js';
 import { normalizeTrackingType, TRACKING_TYPE } from './tracking-type.js';
+import { LATERALITY, LOAD_MODE, normalizeLaterality, normalizeLoadMode, resolveSide, SIDE } from './load-semantics.js';
 
 const STORAGE_PREFIX = 'fitnessapp_workout_draft:';
 const DRAFT_VERSION = 1;
@@ -68,15 +69,18 @@ function collectDraftPayload() {
       const name = card.querySelector('h3')?.textContent?.trim() || '';
       const note = card.querySelector('.js-exercise-note')?.value || '';
       const trackingType = normalizeTrackingType(card.dataset.trackingType);
+      const loadMode = normalizeLoadMode(card.dataset.loadMode);
+      const laterality = normalizeLaterality(card.dataset.laterality);
       const sets = [...card.querySelectorAll('.js-set-row')].map((set) => ({
         weight: set.querySelector('.js-weight-input')?.value || '',
         reps: set.querySelector('.js-reps-input')?.value || '',
         unit: set.querySelector('.js-unit-select')?.value || '公斤',
         durationSec: set.querySelector('.js-duration-input')?.value || '',
+        side: resolveSide(laterality, set.querySelector('.js-side-toggle')?.dataset.side),
         setType: normalizeSetType(set.querySelector('.js-set-type-toggle')?.dataset.setType),
       }));
 
-      return { name, note, trackingType, exerciseId: card.dataset.exerciseId || '', sets };
+      return { name, note, trackingType, loadMode, laterality, exerciseId: card.dataset.exerciseId || '', sets };
     })
     .filter((exercise) => exercise.name);
 
@@ -112,7 +116,7 @@ function buildStoredDraft(payload) {
   };
 }
 
-function createSetFragment(setData, setNumber, trackingType = TRACKING_TYPE.WEIGHT_REPS) {
+function createSetFragment(setData, setNumber, trackingType = TRACKING_TYPE.WEIGHT_REPS, loadMode = LOAD_MODE.TOTAL, laterality = LATERALITY.BILATERAL) {
   const template = document.getElementById('set-row-template');
   if (!template) return null;
 
@@ -123,6 +127,7 @@ function createSetFragment(setData, setNumber, trackingType = TRACKING_TYPE.WEIG
   const unitSelect = fragment.querySelector('.js-unit-select');
   const durationInput = fragment.querySelector('.js-duration-input');
   const setTypeToggle = fragment.querySelector('.js-set-type-toggle');
+  const sideToggle = fragment.querySelector('.js-side-toggle');
   const setRow = fragment.querySelector('.js-set-row');
 
   if (setNumberEl) setNumberEl.textContent = `SET ${setNumber}`;
@@ -131,7 +136,27 @@ function createSetFragment(setData, setNumber, trackingType = TRACKING_TYPE.WEIG
   if (unitSelect) unitSelect.value = setData?.unit || '公斤';
   if (durationInput) durationInput.value = setData?.durationSec ?? '';
   const normalizedTrackingType = normalizeTrackingType(trackingType);
-  if (setRow) setRow.dataset.trackingType = normalizedTrackingType;
+  const normalizedLoadMode = normalizeLoadMode(loadMode);
+  const normalizedLaterality = normalizeLaterality(laterality);
+  const side = resolveSide(normalizedLaterality, setData?.side);
+  if (setRow) {
+    setRow.dataset.trackingType = normalizedTrackingType;
+    setRow.dataset.loadMode = normalizedLoadMode;
+    setRow.dataset.laterality = normalizedLaterality;
+    setRow.dataset.side = side;
+  }
+  if (sideToggle) {
+    sideToggle.dataset.side = side;
+    sideToggle.querySelector('.js-side-label').textContent = side === SIDE.RIGHT ? '右' : '左';
+    sideToggle.classList.toggle('hidden', normalizedTrackingType !== TRACKING_TYPE.WEIGHT_REPS || normalizedLaterality !== LATERALITY.UNILATERAL);
+  }
+  if (unitSelect) {
+    unitSelect.dataset.loadMode = normalizedLoadMode;
+    const kgOption = unitSelect.querySelector('option[value="公斤"]');
+    const lbOption = unitSelect.querySelector('option[value="磅"]');
+    if (kgOption) kgOption.textContent = normalizedLoadMode === LOAD_MODE.PER_HAND ? 'kg/手' : 'kg';
+    if (lbOption) lbOption.textContent = normalizedLoadMode === LOAD_MODE.PER_HAND ? 'lb/手' : 'lb';
+  }
   fragment.querySelector('.js-weight-reps-inputs')?.classList.toggle('hidden', normalizedTrackingType !== TRACKING_TYPE.WEIGHT_REPS);
   fragment.querySelector('.js-duration-inputs')?.classList.toggle('hidden', normalizedTrackingType !== TRACKING_TYPE.DURATION);
   if (setTypeToggle) {
@@ -160,7 +185,11 @@ function createExerciseCard(exercise) {
   if (title) title.textContent = exercise.name || '';
 
   const trackingType = normalizeTrackingType(exercise.trackingType);
+  const loadMode = normalizeLoadMode(exercise.loadMode);
+  const laterality = normalizeLaterality(exercise.laterality);
   card.dataset.trackingType = trackingType;
+  card.dataset.loadMode = loadMode;
+  card.dataset.laterality = laterality;
   if (exercise.exerciseId) card.dataset.exerciseId = exercise.exerciseId;
 
   const noteInput = card.querySelector('.js-exercise-note');
@@ -177,7 +206,7 @@ function createExerciseCard(exercise) {
       : [{ weight: '', reps: '', unit: '公斤', durationSec: '', setType: 'working' }];
 
     sets.forEach((setData, index) => {
-      const setFragment = createSetFragment(setData, index + 1, trackingType);
+      const setFragment = createSetFragment(setData, index + 1, trackingType, loadMode, laterality);
       if (setFragment) setsContainer.appendChild(setFragment);
     });
   }
