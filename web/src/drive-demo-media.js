@@ -70,7 +70,8 @@ export function installDriveDemoMediaAdapter(app) {
         if (!(video instanceof HTMLVideoElement)) return;
         if (!video.closest('.picker-demo-panel')) return;
 
-        const previewUrl = drivePreviewUrlFromMediaUrl(video.currentSrc || video.src);
+        // video.src retains the original Drive URL even if currentSrc follows redirects.
+        const previewUrl = drivePreviewUrlFromMediaUrl(video.src || video.currentSrc);
         if (!previewUrl) return;
 
         event.preventDefault();
