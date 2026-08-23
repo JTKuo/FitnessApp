@@ -17,6 +17,7 @@ import { installInBodySubmitGuard } from './inbody-submit-guard.js';
 import { installWorkoutPickerV2 } from './workout-picker-v2.js';
 import { installDurationUnilateral } from './duration-unilateral.js';
 import { installDriveDemoMediaAdapter } from './drive-demo-media.js';
+import { installDemoMediaAck } from './demo-media-ack.js';
 import './per-hand-unit-presentation.js';
 
 // 搬移的程式碼以全域名稱引用這些函式庫，維持原樣、以掛載頂替 CDN
@@ -34,6 +35,9 @@ installWorkoutPickerV2(app);
 
 // Drive DemoMedia：MP4 優先以靜音循環 video 播放，失敗時退回 Drive preview。
 installDriveDemoMediaAdapter(app);
+
+// 暫時性 DemoMedia ACK：顯示實際 bundle、bootstrap catalog、cache 與 parser/toggle 狀態。
+installDemoMediaAck(app);
 
 // Laterality 與 tracking type 解耦：duration + unilateral 也能選左右並寫入 WorkoutLog。
 installDurationUnilateral(app);
