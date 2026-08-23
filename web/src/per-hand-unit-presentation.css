@@ -1,0 +1,11 @@
+/* Per-hand is load semantics, not a longer physical unit label. */
+.workout-exercise-card .workout-unit-select[data-load-mode="per_hand"] {
+  width: 3.15rem;
+  font-size: 0.72rem;
+}
+
+@media (max-width: 430px) {
+  .workout-exercise-card .workout-unit-select[data-load-mode="per_hand"] {
+    width: 2.75rem;
+  }
+}
