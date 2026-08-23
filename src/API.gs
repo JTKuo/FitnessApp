@@ -254,8 +254,11 @@ function saveProfileDataToServer(authedEmail, cardId, data) {
     _ensureProfileHeaders(profileSheet);
 
     const latestData = _getLatestProfileData(userSheet);
+    const normalizedData = { ...data };
+    if (Object.prototype.hasOwnProperty.call(normalizedData, 'vfi')) normalizedData.vfl = normalizedData.vfi;
+    else if (Object.prototype.hasOwnProperty.call(normalizedData, 'vfl')) normalizedData.vfi = normalizedData.vfl;
 
-    const mergedData = { ...latestData, ...data };
+    const mergedData = { ...latestData, ...normalizedData };
     
     const headers = profileSheet.getRange(1, 1, 1, profileSheet.getLastColumn()).getValues()[0];
     const newRowData = headers.map(header => {
@@ -265,7 +268,7 @@ function saveProfileDataToServer(authedEmail, cardId, data) {
             // ⭐️ [修改] 移除身體數據相關欄位
             const numericKeys = [
               'age', 'height', 'weight', 'bodyfat', 
-              'inbody_score', 'smm', 'bfm', 'bmi', 'vfl'
+              'inbody_score', 'smm', 'bfm', 'bmi', 'vfi', 'vfl'
             ];
             return numericKeys.includes(header) ? '' : '';
         }
@@ -654,15 +657,20 @@ function getAnalysisData(authedEmail, userEmail = null) {
     let smmHistory = [];
     const inbodySheet = userSheet.getSheetByName(CONSTANTS.SHEETS.INBODY_LOG);
     if (inbodySheet && inbodySheet.getLastRow() > 1) {
+      _ensureInBodyV3Headers(inbodySheet);
       const ibWeight = [], ibBodyfat = [];
-      const ibRows = inbodySheet.getRange(2, 1, inbodySheet.getLastRow() - 1, 6).getValues();
+      const ibHeaders = inbodySheet.getRange(1, 1, 1, inbodySheet.getLastColumn()).getValues()[0]
+        .map(function (value) { return String(value || '').trim(); });
+      const ibIndex = {};
+      ibHeaders.forEach(function (header, index) { if (header) ibIndex[header] = index; });
+      const ibRows = inbodySheet.getRange(2, 1, inbodySheet.getLastRow() - 1, inbodySheet.getLastColumn()).getValues();
       ibRows.forEach(function (row) {
-        const d = row[1];
+        const d = row[ibIndex.date];
         if (!(d instanceof Date)) return;
         const iso = d.toISOString();
-        if (row[2] !== '') ibWeight.push({ x: iso, y: parseFloat(row[2]) });
-        if (row[3] !== '') ibBodyfat.push({ x: iso, y: parseFloat(row[3]) });
-        if (row[4] !== '') smmHistory.push({ x: iso, y: parseFloat(row[4]) });
+        if (row[ibIndex.weight] !== '') ibWeight.push({ x: iso, y: parseFloat(row[ibIndex.weight]) });
+        if (row[ibIndex.bodyfat] !== '') ibBodyfat.push({ x: iso, y: parseFloat(row[ibIndex.bodyfat]) });
+        if (row[ibIndex.smm] !== '') smmHistory.push({ x: iso, y: parseFloat(row[ibIndex.smm]) });
       });
       weightHistory = mergeBodyHistory(weightHistory, ibWeight);
       bodyfatHistory = mergeBodyHistory(bodyfatHistory, ibBodyfat);
@@ -1365,56 +1373,112 @@ function getPhotoAsDataUrl(authedEmail, fileId, requestedEmail) {
 }
 
 // =======================================================
-// InBody 量測記錄 (R1)
+// InBody 量測記錄 (V3)
 // =======================================================
 
-const INBODY_HEADERS = ['id', 'date', 'weight', 'bodyfat', 'smm', 'photo_id'];
-const INBODY_RANGES = { weight: [20, 300], bodyfat: [1, 70], smm: [10, 100] };
-const INBODY_FIELD_NAMES = { weight: '體重', bodyfat: '體脂率', smm: '骨骼肌重' };
+// New sheets use the canonical order. Existing R1 sheets are migrated additively:
+// their original columns remain in place and missing V3 headers are appended.
+const INBODY_HEADERS = [
+  'id', 'date', 'weight', 'bodyfat', 'smm',
+  'bfm', 'bmi', 'vfi', 'inbody_score', 'photo_id', 'note'
+];
+const INBODY_RANGES = {
+  weight: [20, 300],
+  bodyfat: [1, 70],
+  smm: [10, 100],
+  bfm: [0, 200],
+  bmi: [5, 80],
+  vfi: [0, 50],
+  inbody_score: [0, 200]
+};
+const INBODY_FIELD_NAMES = {
+  weight: '體重',
+  bodyfat: '體脂率',
+  smm: '骨骼肌重',
+  bfm: '體脂肪重',
+  bmi: 'BMI',
+  vfi: '內臟脂肪等級',
+  inbody_score: 'InBody 分數'
+};
+const INBODY_NUMERIC_FIELDS = ['weight', 'bodyfat', 'smm', 'bfm', 'bmi', 'vfi', 'inbody_score'];
 
-function _getInBodySheet(userSheet) {
-  const sheet = _getOrCreateSheet(userSheet, CONSTANTS.SHEETS.INBODY_LOG);
+function _ensureInBodyV3Headers(sheet) {
+  if (!sheet) throw new Error('InBodyLog 工作表不存在。');
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(INBODY_HEADERS);
+    sheet.getRange(1, 1, 1, INBODY_HEADERS.length).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+    return sheet;
   }
+  const width = Math.max(1, sheet.getLastColumn());
+  const headers = sheet.getRange(1, 1, 1, width).getValues()[0]
+    .map(function (value) { return String(value || '').trim(); });
+  const missing = INBODY_HEADERS.filter(function (header) { return headers.indexOf(header) < 0; });
+  if (missing.length > 0) {
+    sheet.getRange(1, width + 1, 1, missing.length).setValues([missing]);
+    sheet.getRange(1, 1, 1, width + missing.length).setFontWeight('bold');
+  }
+  if (sheet.getFrozenRows() < 1) sheet.setFrozenRows(1);
   return sheet;
+}
+
+function _getInBodyHeaderIndex(sheet) {
+  _ensureInBodyV3Headers(sheet);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+    .map(function (value) { return String(value || '').trim(); });
+  const index = {};
+  headers.forEach(function (header, i) { if (header) index[header] = i; });
+  return { headers: headers, index: index };
+}
+
+function _getInBodySheet(userSheet) {
+  return _ensureInBodyV3Headers(_getOrCreateSheet(userSheet, CONSTANTS.SHEETS.INBODY_LOG));
 }
 
 function _parseInBodyNumber(value, field) {
   if (value === undefined || value === null || value === '') return null;
   const num = parseFloat(value);
   const range = INBODY_RANGES[field];
-  if (isNaN(num) || num < range[0] || num > range[1]) {
+  if (!range || !Number.isFinite(num) || num < range[0] || num > range[1]) {
     throw new Error(INBODY_FIELD_NAMES[field] + ' 數值不合理（允許範圍 ' + range[0] + '–' + range[1] + '）。');
   }
   return num;
 }
 
+function _appendInBodyV3Row(sheet, valuesByHeader) {
+  const schema = _getInBodyHeaderIndex(sheet);
+  const row = schema.headers.map(function (header) {
+    return Object.prototype.hasOwnProperty.call(valuesByHeader, header) ? valuesByHeader[header] : '';
+  });
+  sheet.appendRow(row);
+}
+
 /**
- * (API) 新增一筆 InBody 量測：寫入 InBodyLog、存紙本照片（可選）、
- * 同步 append Profile 最新值（BMR/TDEE 即時反映）。僅限本人。
+ * (API) 新增一筆 InBody 量測：InBodyLog 是歷史 source of truth；
+ * Profile 只同步最新快照。僅限本人。
  */
 function saveInBodyRecord(authedEmail, record) {
   if (!record || typeof record !== 'object' || !record.date || typeof record.date !== 'string') {
     throw new Error('無效的量測資料格式或缺少日期。');
   }
-  const weight = _parseInBodyNumber(record.weight, 'weight');
-  const bodyfat = _parseInBodyNumber(record.bodyfat, 'bodyfat');
-  const smm = _parseInBodyNumber(record.smm, 'smm');
-  if (weight === null && bodyfat === null && smm === null) {
-    throw new Error('體重、體脂率、骨骼肌重至少須填一項。');
-  }
+
+  const metrics = {};
+  INBODY_NUMERIC_FIELDS.forEach(function (field) {
+    metrics[field] = _parseInBodyNumber(record[field], field);
+  });
+  const hasMetric = INBODY_NUMERIC_FIELDS.some(function (field) { return metrics[field] !== null; });
+  if (!hasMetric) throw new Error('InBody 數值至少須填一項。');
+  const note = String(record.note || '').trim();
 
   const userSheet = _getUserSheet(authedEmail, true);
   if (!userSheet) throw new Error('找不到您的資料檔案。');
   const sheet = _getInBodySheet(userSheet);
 
-  // 保留當前時間的日期物件（與 saveBodyPhotosToServer 同法，見 API.gs:296-299）
   const dateParts = record.date.split('-');
+  if (dateParts.length !== 3) throw new Error('量測日期格式不正確。');
   const recordDate = new Date();
-  recordDate.setFullYear(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
+  recordDate.setFullYear(parseInt(dateParts[0], 10), parseInt(dateParts[1], 10) - 1, parseInt(dateParts[2], 10));
 
-  // 紙本照片（可選；存檔模式同 saveBodyPhotosToServer API.gs:304-324）
   let photoId = '';
   if (record.photo) {
     const photosFolder = DriveApp.getFolderById(CONFIG.PHOTOS_FOLDER_ID);
@@ -1429,25 +1493,33 @@ function saveInBodyRecord(authedEmail, record) {
   }
 
   const id = 'ib_' + recordDate.getTime();
-  sheet.appendRow([
-    id, recordDate,
-    weight === null ? '' : weight,
-    bodyfat === null ? '' : bodyfat,
-    smm === null ? '' : smm,
-    photoId
-  ]);
+  const valuesByHeader = {
+    id: id,
+    date: recordDate,
+    photo_id: photoId,
+    note: note
+  };
+  INBODY_NUMERIC_FIELDS.forEach(function (field) {
+    valuesByHeader[field] = metrics[field] === null ? '' : metrics[field];
+  });
+  _appendInBodyV3Row(sheet, valuesByHeader);
 
-  // 同步 Profile 最新值（append 模式同 saveBodyPhotosToServer API.gs:338-353，多支援 smm）
+  // Profile snapshot: update every metric supplied by this measurement.
+  // vfi is canonical, while vfl is mirrored only for legacy compatibility.
   const profileUpdateData = {};
-  if (weight !== null) profileUpdateData.weight = weight;
-  if (bodyfat !== null) profileUpdateData.bodyfat = bodyfat;
-  if (smm !== null) profileUpdateData.smm = smm;
+  INBODY_NUMERIC_FIELDS.forEach(function (field) {
+    if (metrics[field] !== null) profileUpdateData[field] = metrics[field];
+  });
+  if (metrics.vfi !== null) profileUpdateData.vfl = metrics.vfi;
+
   const profileSheet = _getOrCreateSheet(userSheet, CONSTANTS.SHEETS.PROFILE);
+  _ensureProfileHeaders(profileSheet);
   const latestData = _getLatestProfileData(userSheet);
   const mergedData = { ...latestData, ...profileUpdateData, '更新日期': recordDate };
   const headers = profileSheet.getRange(1, 1, 1, profileSheet.getLastColumn()).getValues()[0];
   profileSheet.appendRow(headers.map(function (h) { return mergedData[h] !== undefined ? mergedData[h] : ''; }));
   profileSheet.sort(1, false);
+
   const updatedProfileData = _getLatestProfileData(userSheet);
   if (updatedProfileData && updatedProfileData['更新日期'] instanceof Date) {
     updatedProfileData['更新日期'] = updatedProfileData['更新日期'].toISOString();
@@ -1457,48 +1529,62 @@ function saveInBodyRecord(authedEmail, record) {
   return { status: 'success', message: 'InBody 量測已儲存！', newRecordId: id, updatedProfileData: updatedProfileData };
 }
 
-/**
- * (API) 取得 InBody 量測歷史（新→舊）。經 _resolveTarget，admin 可看學員。
- */
+/** (API) 取得 InBody 量測歷史（新→舊）。 */
 function getInBodyRecords(authedEmail, requestedEmail) {
   const target = _resolveTarget(authedEmail, requestedEmail);
   const userSheet = _getUserSheet(target.targetEmail, false);
   if (!userSheet) return [];
   const sheet = userSheet.getSheetByName(CONSTANTS.SHEETS.INBODY_LOG);
   if (!sheet || sheet.getLastRow() < 2) return [];
-  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, INBODY_HEADERS.length).getValues();
+
+  const schema = _getInBodyHeaderIndex(sheet);
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
   const records = rows.map(function (row) {
-    return {
-      id: row[0],
-      date: row[1] instanceof Date ? row[1].toISOString() : String(row[1]),
-      weight: row[2] === '' ? null : parseFloat(row[2]),
-      bodyfat: row[3] === '' ? null : parseFloat(row[3]),
-      smm: row[4] === '' ? null : parseFloat(row[4]),
-      photoId: row[5] || null
+    const value = function (header) {
+      const idx = schema.index[header];
+      return idx === undefined ? '' : row[idx];
     };
-  });
+    const numeric = function (header) {
+      const raw = value(header);
+      return raw === '' || raw === null || raw === undefined ? null : parseFloat(raw);
+    };
+    const dateValue = value('date');
+    return {
+      id: String(value('id') || ''),
+      date: dateValue instanceof Date ? dateValue.toISOString() : String(dateValue || ''),
+      weight: numeric('weight'),
+      bodyfat: numeric('bodyfat'),
+      smm: numeric('smm'),
+      bfm: numeric('bfm'),
+      bmi: numeric('bmi'),
+      vfi: numeric('vfi'),
+      inbody_score: numeric('inbody_score'),
+      photoId: value('photo_id') || null,
+      note: String(value('note') || '')
+    };
+  }).filter(function (record) { return record.id && record.date; });
   records.sort(function (a, b) { return new Date(b.date) - new Date(a.date); });
   return records;
 }
 
-/**
- * (API) 刪除一筆 InBody 量測（含關聯照片移至垃圾桶）。僅限本人。
- */
+/** (API) 刪除一筆 InBody 量測（含關聯照片移至垃圾桶）。僅限本人。 */
 function deleteInBodyRecord(authedEmail, recordId) {
   if (!recordId || typeof recordId !== 'string') throw new Error('缺少記錄 ID。');
   const userSheet = _getUserSheet(authedEmail, false);
   if (!userSheet) throw new Error('找不到您的資料檔案。');
   const sheet = userSheet.getSheetByName(CONSTANTS.SHEETS.INBODY_LOG);
   if (sheet && sheet.getLastRow() >= 2) {
-    const data = sheet.getDataRange().getValues();
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][0] === recordId) {
-        const photoId = data[i][5];
+    const schema = _getInBodyHeaderIndex(sheet);
+    const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+    for (let i = 0; i < data.length; i++) {
+      if (String(data[i][schema.index.id] || '') === recordId) {
+        const photoIdx = schema.index.photo_id;
+        const photoId = photoIdx === undefined ? '' : data[i][photoIdx];
         if (photoId) {
           try { DriveApp.getFileById(photoId).setTrashed(true); }
           catch (e) { Logger.log('刪除 InBody 照片失敗: ' + e.message); }
         }
-        sheet.deleteRow(i + 1);
+        sheet.deleteRow(i + 2);
         CacheService.getUserCache().remove('analysis_data_' + authedEmail);
         return { status: 'success', message: '記錄已刪除。' };
       }

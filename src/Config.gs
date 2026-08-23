@@ -75,7 +75,8 @@ const CONSTANTS = {
     SMM: 'smm',
     BFM: 'bfm',
     BMI: 'bmi',
-    VFL: 'vfl',
+    VFI: 'vfi',
+    VFL: 'vfl', // legacy alias; canonical field is vfi
     // ...未來可以繼續增加其他欄位
   }
 };

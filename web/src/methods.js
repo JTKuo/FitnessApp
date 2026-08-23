@@ -810,7 +810,7 @@ export const methods = {
                     }
                 },
 
-                // === InBody 量測記錄 (R1) ===
+                // === InBody 量測記錄 (V3) ===
                 async loadInBodyRecords() {
                     const list = document.getElementById('inbody-list');
                     if (!list) return;
@@ -832,18 +832,32 @@ export const methods = {
                         list.innerHTML = '<p class="text-gray-500 text-sm">尚無量測記錄</p>';
                         return;
                     }
+                    const escapeHtml = (value) => String(value ?? '')
+                        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
                     list.innerHTML = records.map(r => {
                         const dateStr = String(r.date).slice(0, 10);
-                        const nums = [
+                        const primary = [
                             r.weight != null ? `體重 ${r.weight} kg` : null,
                             r.bodyfat != null ? `體脂 ${r.bodyfat}%` : null,
                             r.smm != null ? `骨骼肌 ${r.smm} kg` : null,
                         ].filter(Boolean).join('｜');
+                        const secondary = [
+                            r.bfm != null ? `體脂肪重 ${r.bfm} kg` : null,
+                            r.bmi != null ? `BMI ${r.bmi}` : null,
+                            r.vfi != null ? `內臟脂肪 ${r.vfi}` : null,
+                            r.inbody_score != null ? `InBody ${r.inbody_score}` : null,
+                        ].filter(Boolean).join('｜');
+                        const note = r.note ? `<div class="text-xs text-gray-400 mt-1 whitespace-pre-wrap">${escapeHtml(r.note)}</div>` : '';
                         return `
                         <div class="border border-gray-700 rounded-md p-2">
-                            <div class="flex justify-between items-center">
-                                <div class="text-sm"><span class="text-yellow-400">${dateStr}</span>　${nums}</div>
-                                <div class="flex items-center gap-2">
+                            <div class="flex justify-between items-start gap-2">
+                                <div class="min-w-0">
+                                    <div class="text-sm"><span class="text-yellow-400">${dateStr}</span>${primary ? `　${primary}` : ''}</div>
+                                    ${secondary ? `<div class="text-xs text-gray-400 mt-1">${secondary}</div>` : ''}
+                                    ${note}
+                                </div>
+                                <div class="flex items-center gap-2 shrink-0">
                                     ${r.photoId ? `<button onclick="app.methods.toggleInBodyPhoto('${r.id}', '${r.photoId}')" class="p-1" aria-label="檢視量測單"><ion-icon name="image-outline" class="text-xl text-yellow-400 pointer-events-none"></ion-icon></button>` : ''}
                                     ${isViewingSelf ? `<button onclick="app.methods.removeInBodyRecord('${r.id}')" class="p-1" aria-label="刪除記錄"><ion-icon name="trash-outline" class="text-xl text-gray-500 hover:text-red-500 pointer-events-none"></ion-icon></button>` : ''}
                                 </div>
@@ -866,7 +880,10 @@ export const methods = {
                 openInBodyModal() {
                     const dateInput = document.getElementById('inbody-date');
                     if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
-                    ['inbody-weight', 'inbody-bodyfat', 'inbody-smm', 'inbody-photo'].forEach(id => {
+                    [
+                        'inbody-weight', 'inbody-bodyfat', 'inbody-smm', 'inbody-bfm',
+                        'inbody-bmi', 'inbody-vfi', 'inbody-score', 'inbody-note', 'inbody-photo'
+                    ].forEach(id => {
                         const el = document.getElementById(id);
                         if (el) el.value = '';
                     });
@@ -878,23 +895,34 @@ export const methods = {
                 },
 
                 async saveInBodyRecordFromModal() {
-                    const date = document.getElementById('inbody-date')?.value;
-                    const weight = document.getElementById('inbody-weight')?.value;
-                    const bodyfat = document.getElementById('inbody-bodyfat')?.value;
-                    const smm = document.getElementById('inbody-smm')?.value;
+                    const value = (id) => document.getElementById(id)?.value || '';
+                    const date = value('inbody-date');
+                    const record = {
+                        date,
+                        weight: value('inbody-weight'),
+                        bodyfat: value('inbody-bodyfat'),
+                        smm: value('inbody-smm'),
+                        bfm: value('inbody-bfm'),
+                        bmi: value('inbody-bmi'),
+                        vfi: value('inbody-vfi'),
+                        inbody_score: value('inbody-score'),
+                        note: value('inbody-note')
+                    };
                     const photoFile = document.getElementById('inbody-photo')?.files[0];
                     if (!date) { app.ui.showToast('請選擇量測日期', 'error'); return; }
-                    if (!weight && !bodyfat && !smm) { app.ui.showToast('體重、體脂率、骨骼肌至少填一項', 'error'); return; }
+                    const hasMetric = ['weight', 'bodyfat', 'smm', 'bfm', 'bmi', 'vfi', 'inbody_score'].some(key => record[key] !== '');
+                    if (!hasMetric) { app.ui.showToast('InBody 數值至少填一項', 'error'); return; }
                     try {
                         app.ui.showLoading(true);
-                        const record = { date, weight, bodyfat, smm };
                         if (photoFile) record.photo = await this._compressAndReadFileAsBase64(photoFile);
                         const res = await app.api.saveInBodyRecord(record);
                         if (res.updatedProfileData) {
                             app.state.user.profileData = res.updatedProfileData;
                             app.ui.populateProfileData(res.updatedProfileData);
+                            app.methods.calculateRecommendations();
                         }
                         this.closeInBodyModal();
+                        app.cache.clear(app.cache.keys.ANALYSIS_DATA);
                         app.ui.showToast(res.message || 'InBody 量測已儲存！', 'success');
                         await this.loadInBodyRecords();
                     } catch (error) {
@@ -909,6 +937,7 @@ export const methods = {
                     try {
                         app.ui.showLoading(true);
                         await app.api.deleteInBodyRecord(recordId);
+                        app.cache.clear(app.cache.keys.ANALYSIS_DATA);
                         app.ui.showToast('記錄已刪除', 'success');
                         await this.loadInBodyRecords();
                     } catch (error) {
