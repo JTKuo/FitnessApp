@@ -1,0 +1,47 @@
+name: Validate InBody Submit Lock
+
+on:
+  push:
+    branches:
+      - fix/inbody-submit-lock
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Test
+        working-directory: web
+        run: npm run test
+
+      - name: Build
+        working-directory: web
+        run: npm run build
+
+      - name: Remove temporary workflow
+        run: rm .github/workflows/_validate_inbody_submit_lock.yml
+
+      - name: Commit validated cleanup
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'chore: validate InBody submit lock [validated]'
+          git push
