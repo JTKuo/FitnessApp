@@ -14,7 +14,7 @@ export function normalizeNewExerciseSetup(input = {}) {
     const loadMode = trackingType === 'duration' ? 'total' : requestedLoadMode;
     const rawRest = Number(input.defaultRestSec);
     const defaultRestSec = Number.isFinite(rawRest)
-        ? Math.max(0, Math.min(MAX_REST_SEC, Math.round(rawRest)))
+        ? Math.max(1, Math.min(MAX_REST_SEC, Math.round(rawRest)))
         : DEFAULT_REST_SEC;
 
     return { motion, trackingType, laterality, loadMode, defaultRestSec };
@@ -109,7 +109,7 @@ function renderSetup(modal, state) {
 
     const custom = document.createElement('label');
     custom.className = 'exercise-setup-rest-custom';
-    custom.innerHTML = '<span>自訂</span><input data-setup-rest-input type="number" inputmode="numeric" min="0" max="600" step="5"><span>秒</span>';
+    custom.innerHTML = '<span>自訂</span><input data-setup-rest-input type="number" inputmode="numeric" min="1" max="600" step="5"><span>秒</span>';
     const restInput = custom.querySelector('input');
     restInput.value = String(state.defaultRestSec);
     restSection.appendChild(custom);

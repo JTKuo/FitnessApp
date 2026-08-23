@@ -8,6 +8,7 @@ const {
   adjustedEndsAt,
   formatTime,
   isUserSwitchSettled,
+  resolveSetRestSeconds,
 } = restTimerInternals;
 
 describe('rest timer helpers', () => {
@@ -35,6 +36,15 @@ describe('rest timer helpers', () => {
     expect(formatTime(0)).toBe('00:00');
     expect(formatTime(30)).toBe('00:30');
     expect(formatTime(90)).toBe('01:30');
+  });
+
+  it('完成 set 時優先使用該動作的 DefaultRestSec', () => {
+    const configuredSet = {
+      closest: () => ({ dataset: { defaultRestSec: '90' } }),
+    };
+    const plainSet = { closest: () => ({ dataset: {} }) };
+    expect(resolveSetRestSeconds(configuredSet, 30)).toBe(90);
+    expect(resolveSetRestSeconds(plainSet, 30)).toBe(30);
   });
 
   it('Admin 切換成功或失敗回原使用者都能結束 watcher', () => {

@@ -28,7 +28,7 @@ function _normalizeExerciseSetupPayload(metadata) {
 
   let defaultRestSec = Number(metadata.defaultRestSec);
   if (!isFinite(defaultRestSec)) defaultRestSec = 60;
-  defaultRestSec = Math.max(0, Math.min(600, Math.round(defaultRestSec)));
+  defaultRestSec = Math.max(1, Math.min(600, Math.round(defaultRestSec)));
 
   return {
     motion: motion,

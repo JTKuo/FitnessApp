@@ -163,6 +163,13 @@ function setHasWorkoutData(setRow) {
   return weight > 0 || reps > 0;
 }
 
+function resolveSetRestSeconds(setRow, fallbackSeconds = defaultRestSeconds) {
+  const card = setRow?.closest?.('.card');
+  const configured = Number(card?.dataset?.defaultRestSec);
+  if (Number.isFinite(configured) && configured > 0) return configured;
+  return Math.max(1, Number(fallbackSeconds) || 30);
+}
+
 function finishUserSwitchWatch(targetEmail, previousEmail, startedAt) {
   const loadingOverlay = document.getElementById('loading-overlay');
   const currentEmail = getCurrentUser();
@@ -218,7 +225,7 @@ export const restTimer = {
         }
 
         setCompleteButtonState(button, true);
-        this.start(defaultRestSeconds);
+        this.start(resolveSetRestSeconds(setRow, defaultRestSeconds));
       });
     }
 
@@ -360,4 +367,5 @@ export const restTimerInternals = {
   adjustedEndsAt,
   formatTime,
   isUserSwitchSettled,
+  resolveSetRestSeconds,
 };
