@@ -2,8 +2,12 @@ const VIDEO_EXTENSIONS = /\.(mp4|webm|ogg)(?:$|[?#])/i;
 const YOUTUBE_ID = /^[A-Za-z0-9_-]{6,20}$/;
 const DRIVE_FILE_ID = /^[A-Za-z0-9_-]{10,128}$/;
 
+function hostOf(url) {
+    return url.hostname.toLowerCase().replace(/^www\./, '');
+}
+
 function youtubeIdFromUrl(url) {
-    const host = url.hostname.toLowerCase().replace(/^www\./, '');
+    const host = hostOf(url);
     if (host === 'youtu.be') {
         const id = url.pathname.split('/').filter(Boolean)[0] || '';
         return YOUTUBE_ID.test(id) ? id : '';
@@ -29,8 +33,7 @@ function normalizeDriveFileId(value) {
 }
 
 function driveIdFromUrl(url) {
-    const host = url.hostname.toLowerCase().replace(/^www\./, '');
-    if (host !== 'drive.google.com') return '';
+    if (hostOf(url) !== 'drive.google.com') return '';
 
     const parts = url.pathname.split('/').filter(Boolean);
     if (parts[0] === 'file' && parts[1] === 'd') {
@@ -88,6 +91,9 @@ export function normalizeDemoMedia(value) {
 
     const driveFileId = driveIdFromUrl(url);
     if (driveFileId) return driveDescriptor(driveFileId, url.href);
+    // 是 Drive 網址卻抽不到檔案 ID（例如資料夾連結）就到此為止——
+    // 不可落入下方「其他 https 一律當圖片」的預設分支，那會產生無法顯示的圖片描述子。
+    if (hostOf(url) === 'drive.google.com') return null;
 
     const youtubeId = youtubeIdFromUrl(url);
     if (youtubeId) {
